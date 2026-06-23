@@ -26,7 +26,7 @@ public partial class PlayerController : CharacterBody3D
 
     public override void _UnhandledInput(InputEvent @event)
     {
-        if (@event is InputEventKey { Pressed: true, Echo: false, Keycode: Key.Escape })
+        if (@event.IsActionPressed("toggle_cursor"))
         {
             // Dev convenience: release / recapture the cursor.
             Input.MouseMode = Input.MouseMode == Input.MouseModeEnum.Captured
@@ -51,16 +51,16 @@ public partial class PlayerController : CharacterBody3D
 
         if (InputEnabled)
         {
-            if (Input.IsKeyPressed(Key.Space) && IsOnFloor())
+            if (Input.IsActionPressed("jump") && IsOnFloor())
                 velocity.Y = JumpVelocity;
 
             var input = Vector2.Zero;
-            if (Input.IsKeyPressed(Key.W)) input.Y -= 1f;
-            if (Input.IsKeyPressed(Key.S)) input.Y += 1f;
-            if (Input.IsKeyPressed(Key.A)) input.X -= 1f;
-            if (Input.IsKeyPressed(Key.D)) input.X += 1f;
+            if (Input.IsActionPressed("move_forward")) input.Y -= 1f;
+            if (Input.IsActionPressed("move_back")) input.Y += 1f;
+            if (Input.IsActionPressed("move_left")) input.X -= 1f;
+            if (Input.IsActionPressed("move_right")) input.X += 1f;
 
-            float speed = Input.IsKeyPressed(Key.Shift) ? SprintSpeed : WalkSpeed;
+            float speed = Input.IsActionPressed("sprint") ? SprintSpeed : WalkSpeed;
             var direction = (Transform.Basis * new Vector3(input.X, 0f, input.Y)).Normalized();
             velocity.X = direction.X * speed;
             velocity.Z = direction.Z * speed;

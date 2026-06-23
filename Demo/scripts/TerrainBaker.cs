@@ -13,7 +13,8 @@ public partial class TerrainBaker : Node
     private const int Resolution = 384;
     private const int Seed = 20260622;
 
-    private const string MeshPath = "res://assets/terrain.res";
+    private const string MeshPath = "res://Demo/assets/terrain.res";
+    private const string CollisionPath = "res://Demo/assets/terrain_collision.res";
     private const string CompositorPath = "res://addons/topographic/topographic_compositor.tres";
 
     [Export]
@@ -36,15 +37,9 @@ public partial class TerrainBaker : Node
         (var mesh, float[] heightField, int gridSize, float minHeight, float maxHeight) =
             TerrainGenerator.CreateTerrain(WorldSize, Resolution, Seed);
 
-        // Height field for a HeightMapShape3D collider (trimesh collision is
-        // unreliable for a small player capsule against this mesh).
-        mesh.SetMeta("height_field", heightField);
-        mesh.SetMeta("grid_size", gridSize);
-        mesh.SetMeta("world_size", WorldSize);
+        DirAccess.MakeDirRecursiveAbsolute("res://Demo/assets");
 
-        DirAccess.MakeDirRecursiveAbsolute("res://assets");
         var err = ResourceSaver.Save(mesh, MeshPath);
-
         if (err != Error.Ok)
         {
             GD.PrintErr($"Failed to save terrain mesh: {err}");
@@ -52,6 +47,35 @@ public partial class TerrainBaker : Node
         }
 
         GD.Print($"Baked terrain to {MeshPath}. Height range: {minHeight:F1} .. {maxHeight:F1} (world Y)");
+
+        // Bake the heightmap collider as a resource so the scene can reference it
+        // directly, with no runtime collider construction. A HeightMapShape3D's
+        // samples are always 1 unit apart, but the grid spans WorldSize across
+        // (gridSize - 1) cells, so the node needs a step scale. Pre-dividing the
+        // stored heights by that step lets the CollisionShape3D use a UNIFORM
+        // scale (step on every axis), which restores true world heights on Y and
+        // the correct spacing on X/Z -- a non-uniform collider scale is flagged
+        // by Godot as unreliable.
+        float step = WorldSize / (gridSize - 1);
+        float[] colliderHeights = new float[heightField.Length];
+        for (int i = 0; i < heightField.Length; i++)
+            colliderHeights[i] = heightField[i] / step;
+
+        var collisionShape = new HeightMapShape3D
+        {
+            MapWidth = gridSize,
+            MapDepth = gridSize,
+            MapData = colliderHeights
+        };
+
+        var collisionErr = ResourceSaver.Save(collisionShape, CollisionPath);
+        if (collisionErr != Error.Ok)
+        {
+            GD.PrintErr($"Failed to save terrain collider: {collisionErr}");
+            return;
+        }
+
+        GD.Print($"Baked terrain collider to {CollisionPath}");
 
         // Fit the topo ramp from sea level (y = 0) up to the highest peak. The
         // island is mostly low coastal plains with an inland mountain range, so

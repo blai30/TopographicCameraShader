@@ -1,4 +1,4 @@
-[gd_resource type="Compositor" format=3 uid="uid://ba8o7bov2qlek"]
+[gd_resource type="Compositor" format=3 uid="uid://be8mvycru2jj0"]
 
 [ext_resource type="Script" uid="uid://c33qr1xswg5np" path="res://addons/topographic/TopographicEffect.cs" id="1_topo"]
 
