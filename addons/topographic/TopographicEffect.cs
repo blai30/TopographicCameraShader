@@ -132,15 +132,26 @@ public partial class TopographicEffect : CompositorEffect
         uint viewCount = sceneBuffers.GetViewCount();
         for (uint view = 0; view < viewCount; view++)
         {
-            var colorUniform = new RDUniform { UniformType = RenderingDevice.UniformType.Image, Binding = 0 };
+            var colorUniform = new RDUniform
+            {
+                UniformType = RenderingDevice.UniformType.Image,
+                Binding = 0
+            };
             colorUniform.AddId(sceneBuffers.GetColorLayer(view));
 
             var depthUniform = new RDUniform
-                { UniformType = RenderingDevice.UniformType.SamplerWithTexture, Binding = 1 };
+            {
+                UniformType = RenderingDevice.UniformType.SamplerWithTexture,
+                Binding = 1
+            };
             depthUniform.AddId(_sampler);
             depthUniform.AddId(sceneBuffers.GetDepthLayer(view));
 
-            var paramsUniform = new RDUniform { UniformType = RenderingDevice.UniformType.UniformBuffer, Binding = 2 };
+            var paramsUniform = new RDUniform
+            {
+                UniformType = RenderingDevice.UniformType.UniformBuffer,
+                Binding = 2
+            };
             paramsUniform.AddId(paramsBuffer);
 
             var uniformSet =
@@ -163,14 +174,6 @@ public partial class TopographicEffect : CompositorEffect
         float[] data = new float[64];
         int i = 0;
 
-        void Column(float x, float y, float z, float w)
-        {
-            data[i++] = x;
-            data[i++] = y;
-            data[i++] = z;
-            data[i++] = w;
-        }
-
         Column(proj.X.X, proj.X.Y, proj.X.Z, proj.X.W);
         Column(proj.Y.X, proj.Y.Y, proj.Y.Z, proj.Y.W);
         Column(proj.Z.X, proj.Z.Y, proj.Z.Z, proj.Z.W);
@@ -191,5 +194,13 @@ public partial class TopographicEffect : CompositorEffect
         Column(BackgroundColor.R, BackgroundColor.G, BackgroundColor.B, BackgroundColor.A);
 
         return MemoryMarshal.AsBytes(data.AsSpan()).ToArray();
+
+        void Column(float x, float y, float z, float w)
+        {
+            data[i++] = x;
+            data[i++] = y;
+            data[i++] = z;
+            data[i++] = w;
+        }
     }
 }
