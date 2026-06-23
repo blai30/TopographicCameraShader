@@ -1,10 +1,18 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
-  <rect width="128" height="128" rx="16" fill="#2b3a2e"/>
-  <g fill="none" stroke="#cdd9b8" stroke-width="3">
-    <circle cx="64" cy="64" r="14"/>
-    <circle cx="64" cy="64" r="28"/>
-    <circle cx="64" cy="64" r="42"/>
-    <circle cx="64" cy="64" r="56"/>
+  <defs>
+    <path id="iso" d="M64 14 C92 16 116 30 114 56 C113 78 122 92 104 104 C88 115 70 112 56 114 C34 117 16 104 16 80 C16 60 10 40 28 26 C40 16 50 13 64 14 Z" vector-effect="non-scaling-stroke"/>
+    <clipPath id="card"><rect width="128" height="128" rx="18"/></clipPath>
+  </defs>
+  <g clip-path="url(#card)">
+    <rect width="128" height="128" fill="#d9c7a1"/>
+    <g stroke="#1f1208" stroke-width="2" stroke-linejoin="round">
+      <use href="#iso" fill="#4c3f32"/>
+      <use href="#iso" fill="#746857" transform="translate(70 52) scale(0.80) translate(-70 -52)"/>
+      <use href="#iso" fill="#9d907c" transform="translate(70 52) scale(0.62) translate(-70 -52)"/>
+      <use href="#iso" fill="#c5b8a2" transform="translate(70 52) scale(0.45) translate(-70 -52)"/>
+      <use href="#iso" fill="#ede0c7" transform="translate(70 52) scale(0.28) translate(-70 -52)"/>
+    </g>
+    <circle cx="70" cy="52" r="3" fill="#1f1208"/>
   </g>
-  <circle cx="64" cy="64" r="6" fill="#f4f4f8"/>
+  <rect x="1" y="1" width="126" height="126" rx="17" fill="none" stroke="#1f1208" stroke-width="2" opacity="0.35"/>
 </svg>

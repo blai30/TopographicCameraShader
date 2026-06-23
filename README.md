@@ -4,6 +4,22 @@ A distributable, drop-in **topographic-map post-process** for Godot. It recolors
 
 The effect reads **only the depth buffer**, so the scene needs no special materials, and it ships as a `CompositorEffect` you assign to a camera with no extra code.
 
+## Screenshots
+
+These are straight renders of the demo's top-down world-map camera, recolored by the effect from depth alone.
+
+![Topographic world map of the procedural island](screenshots/world-map.png)
+
+The runtime toggles restyle the same map without touching the scene:
+
+| Smooth ramp (`G`) | Flat bands, contours off (`C`) |
+| --- | --- |
+| ![Smooth elevation gradient](screenshots/smooth-ramp.png) | ![Flat stepped elevation bands](screenshots/flat-bands.png) |
+
+| Inverted shades, high = dark (`I`) | Corner minimap, zoomed in |
+| --- | --- |
+| ![Inverted topographic map](screenshots/inverted.png) | ![Minimap render](screenshots/minimap.png) |
+
 ## The product: a reusable addon
 
 The effect lives in **`addons/topographic/`** as a self-contained `CompositorEffect`. Drop that folder into any Godot project and assign `topographic_compositor.tres` to a `Camera3D`'s **Compositor** property, no code required. See **`addons/topographic/README.md`** for install steps and the full parameter reference. That addon is the point of this repository; everything else exists to showcase it.
