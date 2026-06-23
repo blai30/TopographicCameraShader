@@ -24,7 +24,11 @@ public partial class TerrainBaker : Node
         set
         {
             // Only act on a rising edge inside the editor.
-            if (value && Engine.IsEditorHint()) BakeToFiles();
+            if (value && Engine.IsEditorHint())
+            {
+                BakeToFiles();
+            }
+
             field = false;
         }
     }
@@ -59,7 +63,9 @@ public partial class TerrainBaker : Node
         float step = WorldSize / (gridSize - 1);
         float[] colliderHeights = new float[heightField.Length];
         for (int i = 0; i < heightField.Length; i++)
+        {
             colliderHeights[i] = heightField[i] / step;
+        }
 
         var collisionShape = new HeightMapShape3D
         {
@@ -85,7 +91,11 @@ public partial class TerrainBaker : Node
         // water on the map.
         const float rampMin = 0f;
         var compositor = GD.Load<Compositor>(CompositorPath);
-        if (compositor == null) return;
+        if (compositor == null)
+        {
+            return;
+        }
+
         if (compositor.CompositorEffects.OfType<TopographicEffect>().FirstOrDefault() is { } topo)
         {
             topo.MinElevation = rampMin;

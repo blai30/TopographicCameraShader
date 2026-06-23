@@ -3,7 +3,7 @@ using Godot;
 
 namespace TopographicCameraShader.Demo;
 
-public partial class TopographicCameraShader : Node3D
+public partial class Demo : Node3D
 {
     private const float MapCameraHeight = 150f;
     private const float WorldMapMinSize = 30f;
@@ -48,7 +48,11 @@ public partial class TopographicCameraShader : Node3D
         MinimapCamera.Position = new(playerPos.X, MapCameraHeight, playerPos.Z);
         MinimapMarkerCamera.GlobalTransform = MinimapCamera.GlobalTransform;
 
-        if (!MapOpen) return;
+        if (!MapOpen)
+        {
+            return;
+        }
+
         WorldMapMarkerCamera.GlobalTransform = WorldMapCamera.GlobalTransform;
         WorldMapMarkerCamera.Size = WorldMapCamera.Size;
     }
@@ -62,30 +66,46 @@ public partial class TopographicCameraShader : Node3D
         }
 
         if (!MapOpen)
+        {
             return;
+        }
 
         if (@event is InputEventMouseButton mb)
+        {
             HandleMouseButton(mb);
+        }
         else if (@event is InputEventMouseMotion motion && _dragging)
+        {
             PanWorldMap(motion.Relative);
+        }
     }
 
     private void HandleKey(InputEvent key)
     {
         if (key.IsActionPressed("toggle_map"))
+        {
             ToggleMap();
+        }
         else if (MapOpen)
+        {
             HandleShaderToggle(key);
+        }
     }
 
     private void HandleMouseButton(InputEventMouseButton mb)
     {
         if (mb.ButtonIndex == MouseButton.Left)
+        {
             _dragging = mb.Pressed;
+        }
         else if (mb.Pressed && mb.ButtonIndex == MouseButton.WheelUp)
+        {
             ZoomWorldMap(0.9f);
+        }
         else if (mb.Pressed && mb.ButtonIndex == MouseButton.WheelDown)
+        {
             ZoomWorldMap(1.1f);
+        }
     }
 
     private void ToggleMap()
@@ -120,7 +140,10 @@ public partial class TopographicCameraShader : Node3D
         // Camera moves opposite to drag (map follows cursor).
         var rect = WorldMapTexture.Size;
         if (rect.X <= 0f || rect.Y <= 0f)
+        {
             return;
+        }
+
         float worldPerPixelX = WorldMapCamera.Size * (rect.X / rect.Y) / rect.X;
         float worldPerPixelZ = WorldMapCamera.Size / rect.Y;
         WorldMapCamera.Position += new Vector3(
@@ -132,11 +155,29 @@ public partial class TopographicCameraShader : Node3D
     private void HandleShaderToggle(InputEvent @event)
     {
         if (_effect == null)
+        {
             return;
-        if (@event.IsActionPressed("topo_shader")) _effect.Enabled = !_effect.Enabled;
-        else if (@event.IsActionPressed("topo_contours")) _effect.ContoursEnabled = !_effect.ContoursEnabled;
-        else if (@event.IsActionPressed("topo_major")) _effect.MajorContoursEnabled = !_effect.MajorContoursEnabled;
-        else if (@event.IsActionPressed("topo_ramp")) _effect.SmoothRamp = !_effect.SmoothRamp;
-        else if (@event.IsActionPressed("topo_invert")) _effect.InvertRamp = !_effect.InvertRamp;
+        }
+
+        if (@event.IsActionPressed("topo_shader"))
+        {
+            _effect.Enabled = !_effect.Enabled;
+        }
+        else if (@event.IsActionPressed("topo_contours"))
+        {
+            _effect.ContoursEnabled = !_effect.ContoursEnabled;
+        }
+        else if (@event.IsActionPressed("topo_major"))
+        {
+            _effect.MajorContoursEnabled = !_effect.MajorContoursEnabled;
+        }
+        else if (@event.IsActionPressed("topo_ramp"))
+        {
+            _effect.SmoothRamp = !_effect.SmoothRamp;
+        }
+        else if (@event.IsActionPressed("topo_invert"))
+        {
+            _effect.InvertRamp = !_effect.InvertRamp;
+        }
     }
 }

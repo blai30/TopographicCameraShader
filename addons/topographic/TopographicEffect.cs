@@ -48,7 +48,9 @@ public partial class TopographicEffect : CompositorEffect
     {
         _rd = RenderingServer.GetRenderingDevice();
         if (_rd == null)
+        {
             return;
+        }
 
         var spirV = GD.Load<RDShaderFile>(ShaderPath).GetSpirV();
         _shader = _rd.ShaderCreateFromSpirV(spirV);
@@ -69,7 +71,10 @@ public partial class TopographicEffect : CompositorEffect
     public override void _Notification(int what)
     {
         if (what != NotificationPredelete || _freed || _rd == null)
+        {
             return;
+        }
+
         _freed = true;
 
         // Capture by value -- Rids are structs -- so the deferred callable does not touch
@@ -80,25 +85,42 @@ public partial class TopographicEffect : CompositorEffect
         var sampler = _sampler;
         RenderingServer.CallOnRenderThread(Callable.From(() =>
         {
-            if (pipeline.IsValid) rd.FreeRid(pipeline);
-            if (shader.IsValid) rd.FreeRid(shader);
-            if (sampler.IsValid) rd.FreeRid(sampler);
+            if (pipeline.IsValid)
+            {
+                rd.FreeRid(pipeline);
+            }
+
+            if (shader.IsValid)
+            {
+                rd.FreeRid(shader);
+            }
+
+            if (sampler.IsValid)
+            {
+                rd.FreeRid(sampler);
+            }
         }));
     }
 
     public override void _RenderCallback(int effectCallbackType, RenderData renderData)
     {
         if (_rd == null || effectCallbackType != (int)EffectCallbackTypeEnum.PostTransparent)
+        {
             return;
+        }
 
         var sceneBuffers = renderData.GetRenderSceneBuffers() as RenderSceneBuffersRD;
         var sceneData = renderData.GetRenderSceneData() as RenderSceneDataRD;
         if (sceneBuffers == null || sceneData == null)
+        {
             return;
+        }
 
         var size = sceneBuffers.GetInternalSize();
         if (size.X == 0 || size.Y == 0)
+        {
             return;
+        }
 
         uint xGroups = ((uint)size.X - 1) / 8 + 1;
         uint yGroups = ((uint)size.Y - 1) / 8 + 1;

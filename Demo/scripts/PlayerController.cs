@@ -35,8 +35,16 @@ public partial class PlayerController : CharacterBody3D
             return;
         }
 
-        if (!InputEnabled) return;
-        if (@event is not InputEventMouseMotion motion || Input.MouseMode != Input.MouseModeEnum.Captured) return;
+        if (!InputEnabled)
+        {
+            return;
+        }
+
+        if (@event is not InputEventMouseMotion motion || Input.MouseMode != Input.MouseModeEnum.Captured)
+        {
+            return;
+        }
+
         RotateY(-motion.Relative.X * MouseSensitivity);
         _pitch = Mathf.Clamp(_pitch - motion.Relative.Y * MouseSensitivity, -1.55f, 1.55f);
         Camera.Rotation = new(_pitch, 0f, 0f);
@@ -47,18 +55,37 @@ public partial class PlayerController : CharacterBody3D
         var velocity = Velocity;
 
         if (!IsOnFloor())
+        {
             velocity.Y -= _gravity * (float)delta;
+        }
 
         if (InputEnabled)
         {
             if (Input.IsActionPressed("jump") && IsOnFloor())
+            {
                 velocity.Y = JumpVelocity;
+            }
 
             var input = Vector2.Zero;
-            if (Input.IsActionPressed("move_forward")) input.Y -= 1f;
-            if (Input.IsActionPressed("move_back")) input.Y += 1f;
-            if (Input.IsActionPressed("move_left")) input.X -= 1f;
-            if (Input.IsActionPressed("move_right")) input.X += 1f;
+            if (Input.IsActionPressed("move_forward"))
+            {
+                input.Y -= 1f;
+            }
+
+            if (Input.IsActionPressed("move_back"))
+            {
+                input.Y += 1f;
+            }
+
+            if (Input.IsActionPressed("move_left"))
+            {
+                input.X -= 1f;
+            }
+
+            if (Input.IsActionPressed("move_right"))
+            {
+                input.X += 1f;
+            }
 
             float speed = Input.IsActionPressed("sprint") ? SprintSpeed : WalkSpeed;
             var direction = (Transform.Basis * new Vector3(input.X, 0f, input.Y)).Normalized();
