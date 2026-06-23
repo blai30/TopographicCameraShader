@@ -1,4 +1,3 @@
-using System.Linq;
 using Godot;
 
 namespace TopographicCameraShader.Demo;
@@ -96,7 +95,7 @@ public partial class TerrainBaker : Node
             return;
         }
 
-        if (compositor.CompositorEffects.OfType<TopographicEffect>().FirstOrDefault() is { } topo)
+        if (TopographicEffect.FindIn(compositor) is { } topo)
         {
             topo.MinElevation = rampMin;
             topo.MaxElevation = maxHeight;

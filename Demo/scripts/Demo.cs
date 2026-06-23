@@ -1,4 +1,3 @@
-using System.Linq;
 using Godot;
 
 namespace TopographicCameraShader.Demo;
@@ -32,15 +31,12 @@ public partial class Demo : Node3D
 
     public override void _Ready()
     {
-        _effect = ResolveEffect(MinimapCamera);
+        _effect = TopographicEffect.FindIn(MinimapCamera);
 
         WorldMapOverlay.Visible = false;
         WorldMapViewport.RenderTargetUpdateMode = SubViewport.UpdateMode.Disabled;
         WorldMapMarkerViewport.RenderTargetUpdateMode = SubViewport.UpdateMode.Disabled;
     }
-
-    private static TopographicEffect ResolveEffect(Camera3D camera) =>
-        camera?.Compositor?.CompositorEffects.OfType<TopographicEffect>().FirstOrDefault();
 
     public override void _Process(double delta)
     {

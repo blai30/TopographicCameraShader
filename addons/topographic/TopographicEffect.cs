@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Runtime.InteropServices;
 using Godot;
 
@@ -43,6 +44,16 @@ public partial class TopographicEffect : CompositorEffect
         AccessResolvedDepth = true;
         RenderingServer.CallOnRenderThread(Callable.From(InitializeCompute));
     }
+
+    // Locates the TopographicEffect inside a compositor, or null if absent. The
+    // addon owns the knowledge of how it is stored so callers never repeat the
+    // CompositorEffects lookup.
+    public static TopographicEffect FindIn(Compositor compositor) =>
+        compositor?.CompositorEffects.OfType<TopographicEffect>().FirstOrDefault();
+
+    // Convenience overload: the effect attached to a camera's compositor, if any.
+    public static TopographicEffect FindIn(Camera3D camera) =>
+        FindIn(camera?.Compositor);
 
     private void InitializeCompute()
     {
