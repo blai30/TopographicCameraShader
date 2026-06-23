@@ -13,7 +13,7 @@ public partial class TopographicCameraShader : Node3D
     // Ortho size the world map opens at: zoomed in on the player, not the whole island.
     private const float WorldMapDefaultSize = 130f;
 
-    [Export] public Demo.PlayerController Player { get; set; }
+    [Export] public PlayerController Player { get; set; }
     [Export] public Camera3D MinimapCamera { get; set; }
     [Export] public Camera3D MinimapMarkerCamera { get; set; }
 
@@ -55,16 +55,9 @@ public partial class TopographicCameraShader : Node3D
 
     public override void _UnhandledInput(InputEvent @event)
     {
-        if (@event is InputEventKey { Pressed: true, Echo: false })
+        if (@event is InputEventKey { Pressed: true, Echo: false } key)
         {
-            if (@event.IsActionPressed("toggle_map"))
-            {
-                ToggleMap();
-                return;
-            }
-
-            if (MapOpen)
-                HandleShaderToggle(@event);
+            HandleKey(key);
             return;
         }
 
@@ -72,18 +65,27 @@ public partial class TopographicCameraShader : Node3D
             return;
 
         if (@event is InputEventMouseButton mb)
-        {
-            if (mb.ButtonIndex == MouseButton.Left)
-                _dragging = mb.Pressed;
-            else if (mb.Pressed && mb.ButtonIndex == MouseButton.WheelUp)
-                ZoomWorldMap(0.9f);
-            else if (mb.Pressed && mb.ButtonIndex == MouseButton.WheelDown)
-                ZoomWorldMap(1.1f);
-        }
+            HandleMouseButton(mb);
         else if (@event is InputEventMouseMotion motion && _dragging)
-        {
             PanWorldMap(motion.Relative);
-        }
+    }
+
+    private void HandleKey(InputEvent key)
+    {
+        if (key.IsActionPressed("toggle_map"))
+            ToggleMap();
+        else if (MapOpen)
+            HandleShaderToggle(key);
+    }
+
+    private void HandleMouseButton(InputEventMouseButton mb)
+    {
+        if (mb.ButtonIndex == MouseButton.Left)
+            _dragging = mb.Pressed;
+        else if (mb.Pressed && mb.ButtonIndex == MouseButton.WheelUp)
+            ZoomWorldMap(0.9f);
+        else if (mb.Pressed && mb.ButtonIndex == MouseButton.WheelDown)
+            ZoomWorldMap(1.1f);
     }
 
     private void ToggleMap()

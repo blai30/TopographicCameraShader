@@ -5,6 +5,6 @@
         <EnableDynamicLoading>true</EnableDynamicLoading>
     </PropertyGroup>
     <ItemGroup>
-      <Folder Include="Demo\" />
+        <Folder Include="Demo\"/>
     </ItemGroup>
 </Project>

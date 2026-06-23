@@ -62,17 +62,28 @@ public partial class TopographicEffect : CompositorEffect
         });
     }
 
-    // Self-frees GPU resources at runtime. At app shutdown the device may be torn
-    // down before PREDELETE fires, so RIDs leak then -- harmless, process is exiting.
-    // This keeps the addon drop-in with no host code required.
+    // Self-frees GPU resources at runtime. FreeRid is only legal on the render thread,
+    // so the frees are dispatched there (mirroring InitializeCompute). At app shutdown the
+    // device may be torn down before that runs, so RIDs leak then -- harmless, process is
+    // exiting. This keeps the addon drop-in with no host code required.
     public override void _Notification(int what)
     {
         if (what != NotificationPredelete || _freed || _rd == null)
             return;
         _freed = true;
-        if (_pipeline.IsValid) _rd.FreeRid(_pipeline);
-        if (_shader.IsValid) _rd.FreeRid(_shader);
-        if (_sampler.IsValid) _rd.FreeRid(_sampler);
+
+        // Capture by value -- Rids are structs -- so the deferred callable does not touch
+        // this object after it has been destroyed.
+        var rd = _rd;
+        var pipeline = _pipeline;
+        var shader = _shader;
+        var sampler = _sampler;
+        RenderingServer.CallOnRenderThread(Callable.From(() =>
+        {
+            if (pipeline.IsValid) rd.FreeRid(pipeline);
+            if (shader.IsValid) rd.FreeRid(shader);
+            if (sampler.IsValid) rd.FreeRid(sampler);
+        }));
     }
 
     public override void _RenderCallback(int effectCallbackType, RenderData renderData)
