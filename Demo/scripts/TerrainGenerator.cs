@@ -5,9 +5,45 @@ namespace TopographicCameraShader.Demo;
 public readonly record struct TerrainBake(
     ArrayMesh Mesh,
     float[] HeightField,
-    int GridSize,
+    int GridWidth,
+    int GridDepth,
     float MinHeight,
     float MaxHeight);
+
+// Tunables that shape the generated landmass. Defaults (TerrainSettings.Island)
+// reproduce the demo island exactly; a larger, more detailed map raises the
+// octave counts and mountain drama and drops the spawn-center flattening.
+public readonly record struct TerrainSettings
+{
+    public int ContinentOctaves { get; init; }
+    public int DetailOctaves { get; init; }
+    public int MountainOctaves { get; init; }
+    public float BaseLow { get; init; }
+    public float BaseHigh { get; init; }
+    public float MountainHeight { get; init; }
+    public bool RiverEnabled { get; init; }
+    public bool CenterFlatten { get; init; }
+
+    // When true, a radial/elliptical falloff sinks the edges into the sea (an island).
+    // When false, the falloff is dropped so terrain runs edge to edge, like a cropped
+    // tile of a larger continent.
+    public bool IslandFalloff { get; init; }
+
+    // The demo island look. Matches the constants the generator used before
+    // these knobs existed, so the baked demo terrain is unchanged.
+    public static TerrainSettings Island => new()
+    {
+        ContinentOctaves = 3,
+        DetailOctaves = 3,
+        MountainOctaves = 5,
+        BaseLow = -10f,
+        BaseHigh = 26f,
+        MountainHeight = 62f,
+        RiverEnabled = true,
+        CenterFlatten = true,
+        IslandFalloff = true
+    };
+}
 
 public static class TerrainGenerator
 {
@@ -17,37 +53,50 @@ public static class TerrainGenerator
         FastNoiseLite Mountain,
         FastNoiseLite MountainMask);
 
-    public static TerrainBake CreateTerrain(float worldSize, int resolution, int seed)
+    // Generates a landmass spanning worldWidth (X) by worldDepth (Z). resolutionZ is
+    // the cell count along Z; the X cell count is derived to keep cells roughly square,
+    // so a wide world (worldWidth > worldDepth) yields a wide rectangular map rather
+    // than a stretched one. A square world (worldWidth == worldDepth) reproduces the
+    // original radial island exactly.
+    public static TerrainBake CreateTerrain(
+        float worldWidth, float worldDepth, int resolutionZ, int seed, in TerrainSettings settings)
     {
-        float freqScale = 1200f / worldSize;
-        var noises = BuildNoises(seed, freqScale);
+        int resolutionX = Mathf.RoundToInt(resolutionZ * (worldWidth / worldDepth));
 
-        float half = worldSize * 0.5f;
-        float step = worldSize / resolution;
-        float[,] heights = new float[resolution + 1, resolution + 1];
+        // Feature size is keyed to the depth (the shorter, framed dimension), so widening
+        // the world adds more terrain across X at the same scale instead of enlarging it.
+        float freqScale = 1200f / worldDepth;
+        var noises = BuildNoises(seed, freqScale, in settings);
 
-        for (int z = 0; z <= resolution; z++)
-        for (int x = 0; x <= resolution; x++)
+        float halfX = worldWidth * 0.5f;
+        float halfZ = worldDepth * 0.5f;
+        float stepX = worldWidth / resolutionX;
+        float stepZ = worldDepth / resolutionZ;
+        float[,] heights = new float[resolutionX + 1, resolutionZ + 1];
+
+        for (int z = 0; z <= resolutionZ; z++)
+        for (int x = 0; x <= resolutionX; x++)
         {
-            heights[x, z] = SampleHeight(-half + x * step, -half + z * step, worldSize, in noises);
+            heights[x, z] = SampleHeight(-halfX + x * stepX, -halfZ + z * stepZ, halfX, halfZ, in noises, in settings);
         }
 
-        Smooth(heights, resolution);
+        Smooth(heights, resolutionX, resolutionZ);
 
-        (float[] heightField, int gridSize, float minHeight, float maxHeight) = BakeHeightField(heights, resolution);
-        var mesh = BuildMesh(heights, resolution, worldSize);
-        return new(mesh, heightField, gridSize, minHeight, maxHeight);
+        (float[] heightField, int gridWidth, int gridDepth, float minHeight, float maxHeight) =
+            BakeHeightField(heights, resolutionX, resolutionZ);
+        var mesh = BuildMesh(heights, resolutionX, resolutionZ, halfX, halfZ, stepX, stepZ);
+        return new(mesh, heightField, gridWidth, gridDepth, minHeight, maxHeight);
     }
 
     // DomainWarpAmplitude is a world-space distance, so it scales DOWN as the world
     // shrinks -- opposite of Frequency, which scales up.
-    private static NoiseSet BuildNoises(int seed, float freqScale) => new(
+    private static NoiseSet BuildNoises(int seed, float freqScale, in TerrainSettings settings) => new(
         new()
         {
             Seed = seed,
             NoiseType = FastNoiseLite.NoiseTypeEnum.SimplexSmooth,
             FractalType = FastNoiseLite.FractalTypeEnum.Fbm,
-            FractalOctaves = 3,
+            FractalOctaves = settings.ContinentOctaves,
             FractalLacunarity = 2.0f,
             FractalGain = 0.5f,
             Frequency = 0.0011f * freqScale,
@@ -63,7 +112,7 @@ public static class TerrainGenerator
             Seed = seed + 101,
             NoiseType = FastNoiseLite.NoiseTypeEnum.SimplexSmooth,
             FractalType = FastNoiseLite.FractalTypeEnum.Fbm,
-            FractalOctaves = 3,
+            FractalOctaves = settings.DetailOctaves,
             FractalLacunarity = 2.1f,
             FractalGain = 0.5f,
             Frequency = 0.0030f * freqScale
@@ -73,7 +122,7 @@ public static class TerrainGenerator
             Seed = seed + 202,
             NoiseType = FastNoiseLite.NoiseTypeEnum.SimplexSmooth,
             FractalType = FastNoiseLite.FractalTypeEnum.Ridged,
-            FractalOctaves = 5,
+            FractalOctaves = settings.MountainOctaves,
             FractalLacunarity = 2.0f,
             FractalGain = 0.5f,
             Frequency = 0.0019f * freqScale
@@ -88,44 +137,59 @@ public static class TerrainGenerator
         }
     );
 
-    private static float SampleHeight(float wx, float wz, float worldSize, in NoiseSet n)
+    private static float SampleHeight(
+        float wx, float wz, float halfX, float halfZ, in NoiseSet n, in TerrainSettings settings)
     {
-        float maxRadius = worldSize * 0.5f;
-        float d = Mathf.Sqrt(wx * wx + wz * wz) / maxRadius;
-        float falloff = 1f - Mathf.SmoothStep(0.6f, 1.05f, d);
+        // Elliptical falloff: normalize each axis by its own half-extent so the land fills
+        // a rectangle of the world's aspect (a circle when worldWidth == worldDepth). With
+        // IslandFalloff off the terrain runs edge to edge (no coastline shaping).
+        float nx = wx / halfX;
+        float nz = wz / halfZ;
+        float d = Mathf.Sqrt(nx * nx + nz * nz);
+        float falloff = settings.IslandFalloff ? 1f - Mathf.SmoothStep(0.6f, 1.05f, d) : 1f;
 
         float cont = n.Continent.GetNoise2D(wx, wz) * 0.5f + 0.5f;
         float det = n.Detail.GetNoise2D(wx, wz);
         float t = Mathf.Clamp((cont + det * 0.008f) * falloff, 0f, 1f);
 
-        float baseHeight = Mathf.Lerp(-10f, 26f, Mathf.Pow(t, 1.4f));
+        float baseHeight = Mathf.Lerp(settings.BaseLow, settings.BaseHigh, Mathf.Pow(t, 1.4f));
 
         // Keep spawn center as dry land without disturbing beaches elsewhere.
-        float center = Mathf.Clamp(1f - d / 0.14f, 0f, 1f);
+        // Only relevant where a player spawns; a top-down map skips it so the
+        // center is not an artificial flat disc.
+        float center = settings.CenterFlatten ? Mathf.Clamp(1f - d / 0.14f, 0f, 1f) : 0f;
         baseHeight = Mathf.Lerp(baseHeight, Mathf.Max(baseHeight, 7f), center);
 
         // River only cuts through lowland; excluded from spawn center and mountains.
-        float riverX = worldSize * 0.18f + Mathf.Sin(wz * (Mathf.Tau / (worldSize * 0.7f))) * worldSize * 0.10f +
-                       Mathf.Sin(wz * (Mathf.Tau / (worldSize * 0.27f))) * worldSize * 0.04f;
-        float river = (1f - Mathf.SmoothStep(worldSize * 0.018f, worldSize * 0.05f, Mathf.Abs(wx - riverX))) *
-                      (1f - Mathf.SmoothStep(6f, 20f, baseHeight)) * (1f - center);
-        baseHeight = Mathf.Lerp(baseHeight, -2.5f, river);
+        // X position/width scale with the world width, the meander wavelength with depth.
+        float river = 0f;
+        if (settings.RiverEnabled)
+        {
+            float worldWidth = halfX * 2f;
+            float worldDepth = halfZ * 2f;
+            float riverX = worldWidth * 0.18f + Mathf.Sin(wz * (Mathf.Tau / (worldDepth * 0.7f))) * worldWidth * 0.10f +
+                           Mathf.Sin(wz * (Mathf.Tau / (worldDepth * 0.27f))) * worldWidth * 0.04f;
+            river = (1f - Mathf.SmoothStep(worldWidth * 0.018f, worldWidth * 0.05f, Mathf.Abs(wx - riverX))) *
+                    (1f - Mathf.SmoothStep(6f, 20f, baseHeight)) * (1f - center);
+            baseHeight = Mathf.Lerp(baseHeight, -2.5f, river);
+        }
 
         float ridge = n.Mountain.GetNoise2D(wx, wz) * 0.5f + 0.5f;
         float mask = Mathf.SmoothStep(0.5f, 0.72f, n.MountainMask.GetNoise2D(wx, wz) * 0.5f + 0.5f);
-        float mountainHeight = Mathf.Pow(ridge, 2.2f) * mask * falloff * (1f - river) * (1f - center) * 62f;
+        float mountainHeight =
+            Mathf.Pow(ridge, 2.2f) * mask * falloff * (1f - river) * (1f - center) * settings.MountainHeight;
 
         return baseHeight + mountainHeight;
     }
 
-    private static void Smooth(float[,] heights, int resolution, int passes = 3)
+    private static void Smooth(float[,] heights, int resolutionX, int resolutionZ, int passes = 3)
     {
         for (int pass = 0; pass < passes; pass++)
         {
             float[,] src = (float[,])heights.Clone();
-            for (int z = 1; z < resolution; z++)
+            for (int z = 1; z < resolutionZ; z++)
             {
-                for (int x = 1; x < resolution; x++)
+                for (int x = 1; x < resolutionX; x++)
                 {
                     heights[x, z] = BoxAverage(src, x, z);
                 }
@@ -148,41 +212,41 @@ public static class TerrainGenerator
         return sum / 9f;
     }
 
-    private static (float[] field, int gridSize, float minHeight, float maxHeight) BakeHeightField(
-        float[,] heights, int resolution)
+    private static (float[] field, int gridWidth, int gridDepth, float minHeight, float maxHeight) BakeHeightField(
+        float[,] heights, int resolutionX, int resolutionZ)
     {
-        int gridSize = resolution + 1;
-        float[] field = new float[gridSize * gridSize];
+        int gridWidth = resolutionX + 1;
+        int gridDepth = resolutionZ + 1;
+        float[] field = new float[gridWidth * gridDepth];
         float minH = float.MaxValue, maxH = float.MinValue;
-        for (int z = 0; z <= resolution; z++)
+        for (int z = 0; z <= resolutionZ; z++)
         {
-            for (int x = 0; x <= resolution; x++)
+            for (int x = 0; x <= resolutionX; x++)
             {
                 float h = heights[x, z];
-                field[z * gridSize + x] = h;
+                field[z * gridWidth + x] = h;
                 minH = Mathf.Min(minH, h);
                 maxH = Mathf.Max(maxH, h);
             }
         }
 
-        return (field, gridSize, minH, maxH);
+        return (field, gridWidth, gridDepth, minH, maxH);
     }
 
-    private static ArrayMesh BuildMesh(float[,] heights, int resolution, float worldSize)
+    private static ArrayMesh BuildMesh(
+        float[,] heights, int resolutionX, int resolutionZ, float halfX, float halfZ, float stepX, float stepZ)
     {
-        float half = worldSize * 0.5f;
-        float step = worldSize / resolution;
         var st = new SurfaceTool();
         st.Begin(Mesh.PrimitiveType.Triangles);
 
-        for (int z = 0; z < resolution; z++)
+        for (int z = 0; z < resolutionZ; z++)
         {
-            for (int x = 0; x < resolution; x++)
+            for (int x = 0; x < resolutionX; x++)
             {
-                var v00 = Vert(x, z, half, step, heights);
-                var v10 = Vert(x + 1, z, half, step, heights);
-                var v01 = Vert(x, z + 1, half, step, heights);
-                var v11 = Vert(x + 1, z + 1, half, step, heights);
+                var v00 = Vert(x, z, halfX, halfZ, stepX, stepZ, heights);
+                var v10 = Vert(x + 1, z, halfX, halfZ, stepX, stepZ, heights);
+                var v01 = Vert(x, z + 1, halfX, halfZ, stepX, stepZ, heights);
+                var v11 = Vert(x + 1, z + 1, halfX, halfZ, stepX, stepZ, heights);
 
                 st.AddVertex(v00);
                 st.AddVertex(v01);
@@ -198,6 +262,6 @@ public static class TerrainGenerator
         return st.Commit();
     }
 
-    private static Vector3 Vert(int x, int z, float half, float step, float[,] h) =>
-        new(-half + x * step, h[x, z], -half + z * step);
+    private static Vector3 Vert(int x, int z, float halfX, float halfZ, float stepX, float stepZ, float[,] h) =>
+        new(-halfX + x * stepX, h[x, z], -halfZ + z * stepZ);
 }

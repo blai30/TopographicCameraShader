@@ -16,6 +16,11 @@ run/main_scene="res://Demo/scenes/Demo.tscn"
 config/features=PackedStringArray("4.7", "C#", "Forward Plus")
 config/icon="res://icon.svg"
 
+[display]
+
+window/size/viewport_width=1920
+window/size/viewport_height=1080
+
 [dotnet]
 
 project/assembly_name="TopographicCameraShader"

@@ -1,3 +1,5 @@
+![Topographic map of a large procedural landscape in the Classic Ink preset](screenshots/topographic-map.png)
+
 # Topographic Camera Shader (Godot 4.7, C#)
 
 A distributable, drop-in **topographic-map post-process** for Godot. It recolors whatever a camera renders into a **flat, stepped topographic map**: elevation quantized into flat shade steps drawn from a color **gradient** (a 2-stop gradient gives a clean monochrome ink-on-paper look; multi-stop gradients give hypsometric sea-to-peak tints), with a contour line at every step and bold index lines every few steps. No relief or hillshading, just a clean stylized "world map" look. Ships with a ready camera prefab and presets (Classic Ink, Blueprint, Nautical, Heatmap).
@@ -5,10 +7,6 @@ A distributable, drop-in **topographic-map post-process** for Godot. It recolors
 The effect reads **only the depth buffer**, so the scene needs no special materials, and it ships as a `CompositorEffect` you assign to a camera with no extra code.
 
 ## Screenshots
-
-The demo: walk the procedural island in first person while the corner minimap renders it as a live topographic map.
-
-![First-person demo with the topographic minimap and HUD](screenshots/demo.png)
 
 ### Presets
 
@@ -23,6 +21,12 @@ The addon ships four ready-made looks in `addons/topographic/presets/`. Each ima
 | ![Nautical preset: sea-to-peak hypsometric tints](screenshots/preset-nautical.png) | ![Heatmap preset: blue-to-red elevation heatmap](screenshots/preset-heatmap.png) |
 
 The same map restyles live with the runtime toggles, no scene changes: stepped vs. smooth ramp (`G`), contours on/off (`C`), inverted shades (`I`).
+
+### The first-person demo
+
+Walk the procedural island in first person while the corner minimap renders the world as a live topographic map.
+
+![First-person demo with the topographic minimap and HUD](screenshots/demo.png)
 
 ## The product: a reusable addon
 
@@ -52,7 +56,7 @@ The tradeoff is that a compute shader has no fragment derivatives (no `fwidth`),
 
 1. Open the Godot 4.7 .NET editor and **Import** this folder (`project.godot`).
 2. Let it build the C# assembly once (or click **Build** / run `dotnet build`).
-3. Press **Play** (F5). `scenes/Main.tscn` is the main scene.
+3. Press **Play** (F5). `Demo/scenes/Demo.tscn` is the main scene.
 
 ## Controls
 
@@ -79,9 +83,9 @@ World map (while open): **drag** to pan, **wheel** to zoom, **M** / **Tab** to c
 
 ## How the demo is wired
 
-- `scripts/TerrainGenerator.cs` builds an island mesh from `FastNoiseLite` with a radial falloff (world Y roughly **-10 to +67**), returning a `TerrainBake`.
-- `scripts/TerrainBaker.cs` (a `[Tool]` node in `scenes/BakeTerrain.tscn`) bakes that mesh to `assets/terrain.res` and fits the effect's elevation range on `addons/topographic/topographic_compositor.tres`.
-- `scenes/Main.tscn` is authored with the terrain, light, player, the two map `SubViewport`s, and the HUD. `scripts/TopographicCameraShader.cs` handles terrain collision, the minimap follow, the world-map overlay, and the shader toggles.
+- `Demo/scripts/TerrainGenerator.cs` builds an island mesh from `FastNoiseLite` with a radial falloff (world Y roughly **-10 to +67**), returning a `TerrainBake`. Its `TerrainSettings` knobs let the same generator bake a larger, higher-fidelity island for the marketing map.
+- `Demo/scripts/TerrainBaker.cs` (a `[Tool]` node in `Demo/scenes/BakeTerrain.tscn`) bakes that mesh to `Demo/assets/terrain.res` and fits the effect's elevation range on `addons/topographic/topographic_compositor.tres`.
+- `Demo/scenes/Demo.tscn` is authored with the terrain, light, player, the map `SubViewport`s, and the HUD. `Demo/scripts/Demo.cs` handles the minimap follow and the shader toggles, and owns a `WorldMapView` that drives the world-map overlay; terrain collision is a baked `HeightMapShape3D` referenced directly by the scene.
 - `addons/topographic/TopographicEffect.cs` is the `CompositorEffect` assigned to both map cameras via `topographic_compositor.tres`. It runs `addons/topographic/topographic.glsl`, a compute shader that reads only the depth buffer, reconstructs each pixel's world height, normalizes it between `MinElevation` and `MaxElevation`, quantizes it into `Levels` flat shade steps colored by sampling the effect's `Gradient` (low elevation = the gradient's left end, high = its right end), and draws a contour line in `ContourColor` at every step (bold index lines every `MajorEvery` steps).
 
 ## Tuning the effect

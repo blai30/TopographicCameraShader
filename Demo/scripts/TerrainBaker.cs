@@ -36,7 +36,7 @@ public partial class TerrainBaker : Node
     // can run from the editor inspector tick or from a headless bake run.
     public static void BakeToFiles()
     {
-        var bake = TerrainGenerator.CreateTerrain(WorldSize, Resolution, Seed);
+        var bake = TerrainGenerator.CreateTerrain(WorldSize, WorldSize, Resolution, Seed, TerrainSettings.Island);
         DirAccess.MakeDirRecursiveAbsolute("res://Demo/assets");
 
         if (!SaveMesh(bake) || !SaveCollider(bake))
@@ -69,7 +69,7 @@ public partial class TerrainBaker : Node
     // non-uniform collider scale is flagged by Godot as unreliable.
     private static bool SaveCollider(TerrainBake bake)
     {
-        float step = WorldSize / (bake.GridSize - 1);
+        float step = WorldSize / (bake.GridWidth - 1);
         float[] colliderHeights = new float[bake.HeightField.Length];
         for (int i = 0; i < bake.HeightField.Length; i++)
         {
@@ -78,8 +78,8 @@ public partial class TerrainBaker : Node
 
         var collisionShape = new HeightMapShape3D
         {
-            MapWidth = bake.GridSize,
-            MapDepth = bake.GridSize,
+            MapWidth = bake.GridWidth,
+            MapDepth = bake.GridDepth,
             MapData = colliderHeights
         };
 
