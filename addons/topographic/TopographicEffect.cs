@@ -99,9 +99,9 @@ public partial class TopographicEffect : CompositorEffect
     {
         var gradient = new Gradient();
         gradient.SetOffset(0, 0f);
-        gradient.SetColor(0, new Color(0.298f, 0.248f, 0.195f));
+        gradient.SetColor(0, new(0.298f, 0.248f, 0.195f));
         gradient.SetOffset(1, 1f);
-        gradient.SetColor(1, new Color(0.93f, 0.88f, 0.78f));
+        gradient.SetColor(1, new(0.93f, 0.88f, 0.78f));
         return gradient;
     }
 
@@ -145,7 +145,7 @@ public partial class TopographicEffect : CompositorEffect
             UsageBits = RenderingDevice.TextureUsageBits.SamplingBit |
                         RenderingDevice.TextureUsageBits.CanUpdateBit
         };
-        _gradientTexture = _rd.TextureCreate(format, new RDTextureView(), [BakeGradient()]);
+        _gradientTexture = _rd.TextureCreate(format, new(), [BakeGradient()]);
         _gradientDirty = false;
     }
 
@@ -154,11 +154,11 @@ public partial class TopographicEffect : CompositorEffect
     private byte[] BakeGradient()
     {
         var gradient = Gradient ?? MakeDefaultGradient();
-        var data = new byte[PaletteWidth * 4];
+        byte[] data = new byte[PaletteWidth * 4];
         for (int i = 0; i < PaletteWidth; i++)
         {
             float offset = (float)i / (PaletteWidth - 1);
-            Color color = gradient.Sample(offset);
+            var color = gradient.Sample(offset);
             int b = i * 4;
             data[b + 0] = (byte)Mathf.Clamp(Mathf.RoundToInt(color.R * 255f), 0, 255);
             data[b + 1] = (byte)Mathf.Clamp(Mathf.RoundToInt(color.G * 255f), 0, 255);
