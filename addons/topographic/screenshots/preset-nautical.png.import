@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bmy88bj4qnkp"
-path="res://.godot/imported/flat-bands.png-46b3a314e9df884b60610f6d0a7d64ee.ctex"
+uid="uid://dkfsgl5oqqler"
+path="res://.godot/imported/preset-nautical.png-6c5e775c059bf215b64979842c7462eb.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://screenshots/flat-bands.png"
-dest_files=["res://.godot/imported/flat-bands.png-46b3a314e9df884b60610f6d0a7d64ee.ctex"]
+source_file="res://addons/topographic/screenshots/preset-nautical.png"
+dest_files=["res://.godot/imported/preset-nautical.png-6c5e775c059bf215b64979842c7462eb.ctex"]
 
 [params]
 

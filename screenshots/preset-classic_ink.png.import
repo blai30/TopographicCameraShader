@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dw8x8ngis13dy"
-path="res://.godot/imported/smooth-ramp.png-0aa336a97cbccd57a4d793d301ee50f8.ctex"
+uid="uid://g7gn8q3v170"
+path="res://.godot/imported/preset-classic_ink.png-1f689c70c5bb18d91ad12b6acb764103.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://screenshots/smooth-ramp.png"
-dest_files=["res://.godot/imported/smooth-ramp.png-0aa336a97cbccd57a4d793d301ee50f8.ctex"]
+source_file="res://screenshots/preset-classic_ink.png"
+dest_files=["res://.godot/imported/preset-classic_ink.png-1f689c70c5bb18d91ad12b6acb764103.ctex"]
 
 [params]
 

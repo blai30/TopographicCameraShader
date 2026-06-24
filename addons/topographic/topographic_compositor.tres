@@ -1,6 +1,10 @@
-[gd_resource type="Compositor" format=3 uid="uid://be8mvycru2jj0"]
+[gd_resource type="Compositor" load_steps=4 format=3 uid="uid://be8mvycru2jj0"]
 
 [ext_resource type="Script" uid="uid://c33qr1xswg5np" path="res://addons/topographic/TopographicEffect.cs" id="1_topo"]
+
+[sub_resource type="Gradient" id="Gradient_demo"]
+offsets = PackedFloat32Array(0, 1)
+colors = PackedColorArray(0.298, 0.248, 0.195, 1, 0.93, 0.88, 0.78, 1)
 
 [sub_resource type="CompositorEffect" id="CompositorEffect_topo"]
 resource_local_to_scene = false
@@ -11,6 +15,8 @@ needs_motion_vectors = false
 needs_normal_roughness = false
 script = ExtResource("1_topo")
 MaxElevation = 66.803185
+Gradient = SubResource("Gradient_demo")
+ContourColor = Color(0.12, 0.07, 0.03, 1)
 
 [resource]
 compositor_effects = Array[CompositorEffect]([SubResource("CompositorEffect_topo")])

@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dqwhivkrra74i"
-path="res://.godot/imported/inverted.png-89876659a5839bdd18251be51dc58b05.ctex"
+uid="uid://bhsn16n2id48u"
+path="res://.godot/imported/preset-nautical.png-1ec00186fb91d48731d3c4fb51abf187.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://screenshots/inverted.png"
-dest_files=["res://.godot/imported/inverted.png-89876659a5839bdd18251be51dc58b05.ctex"]
+source_file="res://screenshots/preset-nautical.png"
+dest_files=["res://.godot/imported/preset-nautical.png-1ec00186fb91d48731d3c4fb51abf187.ctex"]
 
 [params]
 

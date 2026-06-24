@@ -1,28 +1,32 @@
 # Topographic Camera Shader (Godot 4.7, C#)
 
-A distributable, drop-in **topographic-map post-process** for Godot. It recolors whatever a camera renders into a **flat, monochrome, stepped topographic map**: a single ink hue on a paper background, elevation quantized into flat shade steps (light = high, dark = low) with a contour line at every step and bold index lines every few steps. No relief or hillshading, just a clean stylized "world map" look.
+A distributable, drop-in **topographic-map post-process** for Godot. It recolors whatever a camera renders into a **flat, stepped topographic map**: elevation quantized into flat shade steps drawn from a color **gradient** (a 2-stop gradient gives a clean monochrome ink-on-paper look; multi-stop gradients give hypsometric sea-to-peak tints), with a contour line at every step and bold index lines every few steps. No relief or hillshading, just a clean stylized "world map" look. Ships with a ready camera prefab and presets (Classic Ink, Blueprint, Nautical, Heatmap).
 
 The effect reads **only the depth buffer**, so the scene needs no special materials, and it ships as a `CompositorEffect` you assign to a camera with no extra code.
 
 ## Screenshots
 
-These are straight renders of the demo's top-down world-map camera, recolored by the effect from depth alone.
+The demo: walk the procedural island in first person while the corner minimap renders it as a live topographic map.
 
-![Topographic world map of the procedural island](screenshots/world-map.png)
+![First-person demo with the topographic minimap and HUD](screenshots/demo.png)
 
-The runtime toggles restyle the same map without touching the scene:
+### Presets
 
-| Smooth ramp (`G`) | Flat bands, contours off (`C`) |
+The addon ships four ready-made looks in `addons/topographic/presets/`. Each image below is the same depth-only render of the island, recolored by a different gradient.
+
+| Classic Ink | Blueprint |
 | --- | --- |
-| ![Smooth elevation gradient](screenshots/smooth-ramp.png) | ![Flat stepped elevation bands](screenshots/flat-bands.png) |
+| ![Classic Ink preset: warm monochrome contours](screenshots/preset-classic_ink.png) | ![Blueprint preset: pale lines on navy](screenshots/preset-blueprint.png) |
 
-| Inverted shades, high = dark (`I`) | Corner minimap, zoomed in |
+| Nautical | Heatmap |
 | --- | --- |
-| ![Inverted topographic map](screenshots/inverted.png) | ![Minimap render](screenshots/minimap.png) |
+| ![Nautical preset: sea-to-peak hypsometric tints](screenshots/preset-nautical.png) | ![Heatmap preset: blue-to-red elevation heatmap](screenshots/preset-heatmap.png) |
+
+The same map restyles live with the runtime toggles, no scene changes: stepped vs. smooth ramp (`G`), contours on/off (`C`), inverted shades (`I`).
 
 ## The product: a reusable addon
 
-The effect lives in **`addons/topographic/`** as a self-contained `CompositorEffect`. Drop that folder into any Godot project and assign `topographic_compositor.tres` to a `Camera3D`'s **Compositor** property, no code required. See **`addons/topographic/README.md`** for install steps and the full parameter reference. That addon is the point of this repository; everything else exists to showcase it.
+The effect lives in **`addons/topographic/`** as a self-contained `CompositorEffect`. Drop that folder into any Godot project, then either instance the ready-made `TopographicCamera3D.tscn` prefab or assign one of the `presets/` compositors to a `Camera3D`'s **Compositor** property, no code required. See **`addons/topographic/README.md`** for install steps, presets, and the full parameter reference. That addon is the point of this repository; everything else exists to showcase it.
 
 ## The included demo
 
@@ -78,16 +82,16 @@ World map (while open): **drag** to pan, **wheel** to zoom, **M** / **Tab** to c
 - `scripts/TerrainGenerator.cs` builds an island mesh from `FastNoiseLite` with a radial falloff (world Y roughly **-10 to +67**), returning a `TerrainBake`.
 - `scripts/TerrainBaker.cs` (a `[Tool]` node in `scenes/BakeTerrain.tscn`) bakes that mesh to `assets/terrain.res` and fits the effect's elevation range on `addons/topographic/topographic_compositor.tres`.
 - `scenes/Main.tscn` is authored with the terrain, light, player, the two map `SubViewport`s, and the HUD. `scripts/TopographicCameraShader.cs` handles terrain collision, the minimap follow, the world-map overlay, and the shader toggles.
-- `addons/topographic/TopographicEffect.cs` is the `CompositorEffect` assigned to both map cameras via `topographic_compositor.tres`. It runs `addons/topographic/topographic.glsl`, a compute shader that reads only the depth buffer, reconstructs each pixel's world height, normalizes it between `MinElevation` and `MaxElevation`, quantizes it into `Levels` flat shade steps (high = light `PaperColor`, low = dark `InkColor`), and draws a contour line at every step (bold index lines every `MajorEvery` steps).
+- `addons/topographic/TopographicEffect.cs` is the `CompositorEffect` assigned to both map cameras via `topographic_compositor.tres`. It runs `addons/topographic/topographic.glsl`, a compute shader that reads only the depth buffer, reconstructs each pixel's world height, normalizes it between `MinElevation` and `MaxElevation`, quantizes it into `Levels` flat shade steps colored by sampling the effect's `Gradient` (low elevation = the gradient's left end, high = its right end), and draws a contour line in `ContourColor` at every step (bold index lines every `MajorEvery` steps).
 
 ## Tuning the effect
 
-The shipped defaults are the C# property initializers on `TopographicEffect`; edit them there or on the effect inside `addons/topographic/topographic_compositor.tres`. Full reference in the addon's own README. Key points:
+The shipped defaults are the C# property initializers on `TopographicEffect`; edit them there or on the effect inside `addons/topographic/topographic_compositor.tres`. Pick a different starting look by assigning one of the `presets/` compositors. Full reference in the addon's own README. Key points:
 
-- **Hue**: `InkColor` (also the contour-line color, keep it dark) and `PaperColor`. For a black map, set `InkColor` near black and `PaperColor` light.
-- **Steps**: `Levels` sets how many flat shades / contour lines there are. `FillLow` / `FillHigh` set the low and high ends of the fill ramp. Keep `FillLow` above ~0.2 so the fill stays lighter than the contour ink, otherwise contours vanish in low areas.
-- **Lines**: `MajorEvery`, `MinorWidthPx`, `MajorWidthPx`, `MinorFade`, and the two opacities control the contours. `ContoursEnabled` off gives pure flat bands; `MajorContoursEnabled` off drops just the bold index lines.
-- **Ramp**: `SmoothRamp = true` gives a continuous gradient (the G key toggles this at runtime). `InvertRamp = true` flips high = dark.
+- **Color**: `Gradient` is the single source of band color. Its left end colors the lowest elevation, its right end the highest. A 2-stop gradient gives a clean monochrome look; add stops for hypsometric tints. Edit it with Godot's gradient editor.
+- **Lines**: `ContourColor` is the contour-line color; keep it distinct (usually darker) from the gradient bands it overlays. `MajorEvery`, `MinorWidthPx`, `MajorWidthPx`, `MinorFade`, and the two opacities control the contours. `ContoursEnabled` off gives pure flat bands; `MajorContoursEnabled` off drops just the bold index lines.
+- **Steps**: `Levels` sets how many flat shades / contour lines there are.
+- **Ramp**: `SmoothRamp = true` gives a continuous gradient (the G key toggles this at runtime). `InvertRamp = true` samples the gradient from the far end.
 - **Range**: `MinElevation` / `MaxElevation` must match your terrain's height range. Re-baking sets these automatically from the mesh.
 
 The map cameras' **Near/Far** must bracket all terrain (nothing touching either plane) so depth maps cleanly to height.

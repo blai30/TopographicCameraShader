@@ -5,17 +5,17 @@ layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 
 layout(set = 0, binding = 0, rgba16f) uniform image2D color_image;
 layout(set = 0, binding = 1) uniform sampler2D depth_texture;
+layout(set = 0, binding = 3) uniform sampler2D gradient_texture; // 1-D elevation color ramp
 
 layout(set = 0, binding = 2, std140) uniform Params {
 	mat4 proj;             // forward camera projection (view -> clip)
 	mat4 inv_view;         // camera transform (view -> world)
 	vec4 raster_and_range; // raster_size.xy, min_elevation, max_elevation
-	vec4 ramp_params;      // levels, fill_low, fill_high, major_every
+	vec4 ramp_params;      // levels, major_every, unused, unused
 	vec4 contour_weights;  // minor_width_px, major_width_px, minor_opacity, major_opacity
 	vec4 contour_flags;    // contours_enabled, smooth_ramp, minor_fade, major_contours_enabled
 	vec4 mode_flags;       // invert_ramp, unused, unused, unused
-	vec4 ink_color;
-	vec4 paper_color;
+	vec4 contour_color;
 	vec4 background_color;
 } p;
 
@@ -65,9 +65,7 @@ void main() {
 	float min_e = p.raster_and_range.z;
 	float max_e = p.raster_and_range.w;
 	float levels_f = max(p.ramp_params.x, 1.0);
-	float fill_low = p.ramp_params.y;
-	float fill_high = p.ramp_params.z;
-	float major_every = max(p.ramp_params.w, 1.0);
+	float major_every = max(p.ramp_params.y, 1.0);
 	float minor_width_px = p.contour_weights.x;
 	float major_width_px = p.contour_weights.y;
 	float minor_opacity = p.contour_weights.z;
@@ -84,13 +82,15 @@ void main() {
 	float band = clamp(floor(te * levels_f), 0.0, levels_f - 1.0);
 	float ramp = smooth_ramp ? te : band / max(levels_f - 1.0, 1.0);
 
-	// Default: high elevation -> light (paper), low -> dark (ink).
-	// invert_ramp flips the color-to-elevation mapping (high -> dark).
+	// invert_ramp flips the color-to-elevation mapping (e.g. high -> dark end).
 	if (invert_ramp) {
 		ramp = 1.0 - ramp;
 	}
-	float fill = mix(fill_low, fill_high, ramp);
-	vec3 col = mix(p.ink_color.rgb, p.paper_color.rgb, fill);
+
+	// The gradient is the single source of band color: low elevation samples the
+	// left of the ramp, high elevation the right. A 2-stop gradient reproduces the
+	// old monochrome ink->paper look; multi-stop gradients give hypsometric tints.
+	vec3 col = texture(gradient_texture, vec2(clamp(ramp, 0.0, 1.0), 0.5)).rgb;
 
 	if (contours_enabled) {
 		// Step-space gradient from neighbor texels (replaces fwidth(q)).
@@ -110,9 +110,9 @@ void main() {
 		float fade = clamp(1.0 - deriv_q * minor_fade, 0.0, 1.0);
 		minor *= fade;
 
-		col = mix(col, p.ink_color.rgb, minor * minor_opacity);
+		col = mix(col, p.contour_color.rgb, minor * minor_opacity);
 		if (major_contours_enabled) {
-			col = mix(col, p.ink_color.rgb, major * major_opacity);
+			col = mix(col, p.contour_color.rgb, major * major_opacity);
 		}
 	}
 
