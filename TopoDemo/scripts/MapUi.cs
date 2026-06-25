@@ -2,46 +2,45 @@ using Godot;
 
 namespace TopographicMap.TopoDemo;
 
-// Drives the HUD map. The corner minimap is a player-centred crop of the map
-// SubViewport texture. The full-screen world map shows the same texture with
-// mouse zoom and pan. The player marker is a node in the scene rendered into the
-// map texture (see the Marker node under the player), so no marker code lives here.
+// Drives the HUD map. The corner minimap and the full-screen world map are both
+// ColorRects running the topographic styling shader over the shared height
+// buffer (the MapView SubViewport texture). Each sets a sampling window
+// (center + span in buffer-UV space) so it rasterizes the topographic effect at
+// its own resolution: the minimap is a fixed player-centered window, the world
+// map is a zoom/pan window. Nothing magnifies a pre-rendered image. The world
+// map is kept a centered square so the square world is not stretched on a
+// non-square screen.
 public partial class MapUi : Control
 {
     [Export] public SubViewport MapViewport;
-    [Export] public TextureRect Minimap;
-    [Export] public TextureRect WorldMapImage;
+    [Export] public ColorRect Minimap;
+    [Export] public ColorRect WorldMapImage;
     [Export] public Control WorldMapRoot;
     [Export] public Node3D Player;
     [Export] public float TerrainSize = 1536.0f;
     [Export] public float MinimapWorldSpan = 220.0f;
 
-    // World map zoom/pan tuning. Zoom is a display multiplier on the fitted map.
+    // World map zoom. Zoom is how much of the world the window spans: span = 1/zoom.
     [Export] public float InitialZoom = 1.8f;
     [Export] public float MinZoom = 1.0f;
     [Export] public float MaxZoom = 6.0f;
     [Export] public float ZoomStep = 1.15f;
 
-    private AtlasTexture _atlas;
-    private Texture2D _mapTexture;
+    private ShaderMaterial _minimapMat;
+    private ShaderMaterial _worldMat;
 
     private float _zoom = 1.8f;
-    private Vector2 _panUv = new(0.5f, 0.5f); // world UV shown at the screen centre
+    private Vector2 _panUv = new(0.5f, 0.5f); // world UV at the world-map window center
     private bool _dragging;
 
     public override void _Ready()
     {
-        _mapTexture = MapViewport.GetTexture();
-        _atlas = new() { Atlas = _mapTexture };
-        Minimap.Texture = _atlas;
+        _minimapMat = (ShaderMaterial)Minimap.Material;
+        _worldMat = (ShaderMaterial)WorldMapImage.Material;
 
-        WorldMapImage.Texture = _mapTexture;
-        WorldMapImage.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
-        WorldMapImage.StretchMode = TextureRect.StretchModeEnum.Scale;
-        WorldMapImage.AnchorLeft = 0;
-        WorldMapImage.AnchorTop = 0;
-        WorldMapImage.AnchorRight = 0;
-        WorldMapImage.AnchorBottom = 0;
+        var heightBuffer = MapViewport.GetTexture();
+        _minimapMat.SetShaderParameter("height_buffer", heightBuffer);
+        _worldMat.SetShaderParameter("height_buffer", heightBuffer);
 
         WorldMapRoot.Visible = false;
     }
@@ -51,6 +50,7 @@ public partial class MapUi : Control
         UpdateMinimap();
         if (WorldMapRoot.Visible)
         {
+            LayoutWorldMap();
             UpdateWorldMap();
         }
     }
@@ -80,14 +80,16 @@ public partial class MapUi : Control
                 _dragging = leftButton.Pressed;
                 break;
             case InputEventMouseMotion motion when _dragging:
-                _panUv -= motion.Relative / MapDisplaySize();
+                // Drag moves the world under the cursor: shift the window center
+                // opposite the drag, scaled by the current span over the map size.
+                _panUv -= motion.Relative / WorldMapImage.Size * WindowSpan();
                 ClampPan();
                 break;
             case InputEventKey { Pressed: true, Keycode: Key.Equal or Key.KpAdd }:
-                ZoomAt(WorldMapRoot.Size * 0.5f, ZoomStep);
+                ZoomAt(WorldMapImage.Position + WorldMapImage.Size * 0.5f, ZoomStep);
                 break;
             case InputEventKey { Pressed: true, Keycode: Key.Minus or Key.KpSubtract }:
-                ZoomAt(WorldMapRoot.Size * 0.5f, 1.0f / ZoomStep);
+                ZoomAt(WorldMapImage.Position + WorldMapImage.Size * 0.5f, 1.0f / ZoomStep);
                 break;
         }
     }
@@ -101,6 +103,9 @@ public partial class MapUi : Control
         {
             _zoom = InitialZoom;
             _panUv = WorldToUv(Player.GlobalPosition);
+            ClampPan();
+            LayoutWorldMap();
+            UpdateWorldMap();
             Input.MouseMode = Input.MouseModeEnum.Visible;
         }
         else
@@ -112,30 +117,28 @@ public partial class MapUi : Control
 
     private void UpdateMinimap()
     {
-        if (_atlas.Atlas == null)
-        {
-            return;
-        }
+        float span = MinimapWorldSpan / TerrainSize;
+        _minimapMat.SetShaderParameter("window_center", WorldToUv(Player.GlobalPosition));
+        _minimapMat.SetShaderParameter("window_span", new Vector2(span, span));
+    }
 
-        var texSize = _atlas.Atlas.GetSize();
-        var uv = WorldToUv(Player.GlobalPosition);
-        float spanPx = MinimapWorldSpan / TerrainSize * texSize.X;
-        _atlas.Region = new(
-            uv.X * texSize.X - spanPx * 0.5f,
-            uv.Y * texSize.Y - spanPx * 0.5f,
-            spanPx,
-            spanPx);
+    // Keep the world map a centered square sized to the shorter screen dimension.
+    private void LayoutWorldMap()
+    {
+        float side = Mathf.Min(WorldMapRoot.Size.X, WorldMapRoot.Size.Y);
+        WorldMapImage.Size = new(side, side);
+        WorldMapImage.Position = (WorldMapRoot.Size - WorldMapImage.Size) * 0.5f;
     }
 
     private void UpdateWorldMap()
     {
-        float display = MapDisplaySize();
-        WorldMapImage.Position = WorldMapRoot.Size * 0.5f - _panUv * display;
-        WorldMapImage.Size = new(display, display);
+        float span = WindowSpan();
+        _worldMat.SetShaderParameter("window_center", _panUv);
+        _worldMat.SetShaderParameter("window_span", new Vector2(span, span));
     }
 
-    // Display size in pixels of the (square) full map at the current zoom.
-    private float MapDisplaySize() => Mathf.Min(WorldMapRoot.Size.X, WorldMapRoot.Size.Y) * _zoom;
+    // Fraction of the world the world-map window spans at the current zoom.
+    private float WindowSpan() => Mathf.Min(1.0f, 1.0f / _zoom);
 
     private Vector2 WorldToUv(Vector3 world) =>
         new(world.X / TerrainSize + 0.5f, world.Z / TerrainSize + 0.5f);
@@ -143,17 +146,25 @@ public partial class MapUi : Control
     // Zoom while keeping the world point under screenPos fixed on screen.
     private void ZoomAt(Vector2 screenPos, float factor)
     {
-        float oldDisplay = MapDisplaySize();
-        Vector2 topLeft = WorldMapRoot.Size * 0.5f - _panUv * oldDisplay;
-        Vector2 uvUnderCursor = (screenPos - topLeft) / oldDisplay;
+        Vector2 screenUv = (screenPos - WorldMapImage.Position) / WorldMapImage.Size - new Vector2(0.5f, 0.5f);
+        Vector2 uvUnderCursor = _panUv + screenUv * WindowSpan();
 
         _zoom = Mathf.Clamp(_zoom * factor, MinZoom, MaxZoom);
 
-        float newDisplay = MapDisplaySize();
-        _panUv = (WorldMapRoot.Size * 0.5f - screenPos) / newDisplay + uvUnderCursor;
+        _panUv = uvUnderCursor - screenUv * WindowSpan();
         ClampPan();
     }
 
-    private void ClampPan() =>
-        _panUv = new(Mathf.Clamp(_panUv.X, 0.0f, 1.0f), Mathf.Clamp(_panUv.Y, 0.0f, 1.0f));
+    private void ClampPan()
+    {
+        float half = WindowSpan() * 0.5f;
+        float lo = half;
+        float hi = 1.0f - half;
+        if (lo > hi)
+        {
+            _panUv = new(0.5f, 0.5f);
+            return;
+        }
+        _panUv = new(Mathf.Clamp(_panUv.X, lo, hi), Mathf.Clamp(_panUv.Y, lo, hi));
+    }
 }

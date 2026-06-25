@@ -62,11 +62,14 @@ public partial class TerrainBaker : MainLoop
         for (int iz = 0; iz < CollisionGrid; iz++)
         for (int ix = 0; ix < CollisionGrid; ix++)
         {
-            // Sample at the world position each grid point lands on after the (cell,1,cell) node scale.
+            // Sample at the world position each grid point lands on after the uniform
+            // (cell,cell,cell) node scale. Heights are stored divided by the cell size
+            // so the uniform scale (needed to keep the CollisionShape3D happy) does not
+            // stretch them: storedHeight * cell == true world height.
             float wx = (ix - (CollisionGrid - 1) * 0.5f) * cell;
             float wz = (iz - (CollisionGrid - 1) * 0.5f) * cell;
             float height = SampleHeight(wx, wz);
-            data[iz * CollisionGrid + ix] = height;
+            data[iz * CollisionGrid + ix] = height / cell;
             minSeen = Mathf.Min(minSeen, height);
             maxSeen = Mathf.Max(maxSeen, height);
             if (height < 0f) below++;
