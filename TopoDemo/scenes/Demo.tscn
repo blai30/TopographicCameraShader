@@ -1,0 +1,164 @@
+[gd_scene format=3 uid="uid://dhsq8xxae6jw5"]
+
+[ext_resource type="Script" uid="uid://mvvi72cbryux" path="res://TopoDemo/scripts/Demo.cs" id="1_ujjjx"]
+[ext_resource type="Material" uid="uid://baq14ca08hfn7" path="res://TopoDemo/assets/water_material.tres" id="5_nl2f7"]
+[ext_resource type="CompositorEffect" uid="uid://btxcwgfvxwdml" path="res://TopoDemo/assets/map_view_compositor_effect.tres" id="6_hqj3e"]
+[ext_resource type="Script" uid="uid://cb6kukq0i4na7" path="res://TopoDemo/scripts/PlayerController.cs" id="20_ypqk8"]
+[ext_resource type="Shader" uid="uid://xxh1rpgwq2j5" path="res://addons/topographic/marker.gdshader" id="40_marker"]
+[ext_resource type="Script" uid="uid://ku8y1iucj7fs" path="res://TopoDemo/scripts/MapUi.cs" id="60_mapui"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_sky"]
+sky_top_color = Color(0.28, 0.45, 0.75, 1)
+sky_horizon_color = Color(0.64, 0.74, 0.82, 1)
+ground_bottom_color = Color(0.33, 0.35, 0.34, 1)
+ground_horizon_color = Color(0.64, 0.74, 0.82, 1)
+sun_angle_max = 40.0
+sun_curve = 0.12
+
+[sub_resource type="Sky" id="Sky_main"]
+sky_material = SubResource("ProceduralSkyMaterial_sky")
+
+[sub_resource type="Environment" id="Environment_3j1m5"]
+background_mode = 2
+background_color = Color(0.24780053, 0.2716998, 0.33183005, 1)
+sky = SubResource("Sky_main")
+ambient_light_source = 3
+ambient_light_color = Color(0.6651851, 0.7014107, 0.76737565, 1)
+tonemap_mode = 4
+ssao_enabled = true
+fog_enabled = true
+fog_light_color = Color(0.74, 0.8, 0.86, 1)
+fog_light_energy = 0.4
+fog_density = 0.0015
+fog_sky_affect = 0.0
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_water"]
+size = Vector2(2048, 2048)
+
+[sub_resource type="Compositor" id="Compositor_io8mt"]
+compositor_effects = Array[CompositorEffect]([ExtResource("6_hqj3e")])
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_player"]
+radius = 0.3
+height = 1.8
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_player"]
+radius = 0.3
+height = 1.8
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_marker"]
+render_priority = 0
+shader = ExtResource("40_marker")
+shader_parameter/marker_color = Color(0.95, 0.15, 0.15, 1)
+shader_parameter/outline_color = Color(1, 1, 1, 1)
+
+[sub_resource type="QuadMesh" id="QuadMesh_marker"]
+size = Vector2(10, 10)
+
+[node name="Demo" type="Node3D" unique_id=2147396049]
+script = ExtResource("1_ujjjx")
+
+[node name="Sun" type="DirectionalLight3D" parent="." unique_id=284187964]
+transform = Transform3D(0.76604444, 0.52654076, -0.3686878, 0, 0.57357645, 0.81915206, 0.6427876, -0.62750685, 0.43938506, 0, 0, 0)
+light_color = Color(1, 0.96, 0.88, 1)
+light_energy = 1.2
+shadow_enabled = true
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=1917926850]
+environment = SubResource("Environment_3j1m5")
+
+[node name="Water" type="MeshInstance3D" parent="." unique_id=1819411141]
+material_override = ExtResource("5_nl2f7")
+mesh = SubResource("PlaneMesh_water")
+
+[node name="MapView" type="SubViewport" parent="." unique_id=808317950]
+size = Vector2i(1024, 1024)
+render_target_update_mode = 3
+
+[node name="TopDownCamera" type="Camera3D" parent="MapView" unique_id=49419363]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 200, 0)
+cull_mask = 1026
+compositor = SubResource("Compositor_io8mt")
+projection = 1
+size = 768.0
+near = 80.0
+far = 245.0
+
+[node name="Player" type="CharacterBody3D" parent="." unique_id=1101662163 node_paths=PackedStringArray("CameraPivot", "Body")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 80, 27, 0)
+script = ExtResource("20_ypqk8")
+CameraPivot = NodePath("CameraPivot")
+Body = NodePath("Body")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Player" unique_id=299342782]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
+shape = SubResource("CapsuleShape3D_player")
+
+[node name="Body" type="Node3D" parent="Player" unique_id=3592494]
+
+[node name="BodyMesh" type="MeshInstance3D" parent="Player/Body" unique_id=1981507952]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
+mesh = SubResource("CapsuleMesh_player")
+
+[node name="Marker" type="MeshInstance3D" parent="Player/Body" unique_id=2142907316]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 4, 0)
+layers = 1024
+material_override = SubResource("ShaderMaterial_marker")
+mesh = SubResource("QuadMesh_marker")
+
+[node name="CameraPivot" type="SpringArm3D" parent="Player" unique_id=82672783]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, 0)
+spring_length = 6.0
+
+[node name="MainCamera" type="Camera3D" parent="Player/CameraPivot" unique_id=1154431821]
+cull_mask = 1047551
+
+[node name="Hud" type="CanvasLayer" parent="." unique_id=1778174740]
+
+[node name="MapUi" type="Control" parent="Hud" unique_id=956150903 node_paths=PackedStringArray("MapViewport", "Minimap", "WorldMapImage", "WorldMapRoot", "Player")]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("60_mapui")
+MapViewport = NodePath("../../MapView")
+Minimap = NodePath("Minimap")
+WorldMapImage = NodePath("WorldMap/WorldMapImage")
+WorldMapRoot = NodePath("WorldMap")
+Player = NodePath("../../Player")
+
+[node name="Minimap" type="TextureRect" parent="Hud/MapUi" unique_id=1261521365]
+layout_mode = 0
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -276.0
+offset_top = 20.0
+offset_right = -20.0
+offset_bottom = 276.0
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 5
+
+[node name="WorldMap" type="ColorRect" parent="Hud/MapUi" unique_id=2138920796]
+layout_mode = 0
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+color = Color(0, 0, 0, 0.6)
+
+[node name="WorldMapImage" type="TextureRect" parent="Hud/MapUi/WorldMap" unique_id=819776301]
+layout_mode = 0
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -450.0
+offset_top = -450.0
+offset_right = 450.0
+offset_bottom = 450.0
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 5

@@ -1,0 +1,12 @@
+[gd_resource type="GradientTexture1D" load_steps=2 format=3]
+
+; Viridis: a perceptually uniform data-visualization ramp (deep purple, blue,
+; teal, green, yellow). Modern, colorblind-friendly elevation shading.
+
+[sub_resource type="Gradient" id="Gradient_viridis"]
+offsets = PackedFloat32Array(0, 0.25, 0.5, 0.75, 1)
+colors = PackedColorArray(0.267, 0.005, 0.329, 1, 0.275, 0.196, 0.497, 1, 0.128, 0.567, 0.551, 1, 0.369, 0.789, 0.383, 1, 0.993, 0.906, 0.144, 1)
+
+[resource]
+gradient = SubResource("Gradient_viridis")
+width = 256

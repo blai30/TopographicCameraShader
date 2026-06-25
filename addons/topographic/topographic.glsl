@@ -1,122 +1,83 @@
 #[compute]
 #version 450
 
+// Topographic post-process. Reads the orthographic top-down camera depth
+// buffer, reconstructs world height (linear for an orthographic projection),
+// and writes a hypsometric tint plus contour lines into the color image. The
+// elevation tint is sampled from a gradient texture. Every Nth contour is
+// drawn thicker as a major contour. Background and below-sea-level texels
+// become water. Runs at PRE_TRANSPARENT, so a transparent-pass marker drawn
+// afterward lands on top untouched.
+
 layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 
-layout(set = 0, binding = 0, rgba16f) uniform image2D color_image;
-layout(set = 0, binding = 1) uniform sampler2D depth_texture;
-layout(set = 0, binding = 3) uniform sampler2D gradient_texture; // 1-D elevation color ramp
+layout(rgba16f, set = 0, binding = 0) uniform image2D color_image;
+layout(set = 0, binding = 1) uniform sampler2D depth_tex;
+layout(set = 0, binding = 2) uniform sampler2D ramp_tex;
 
-layout(set = 0, binding = 2, std140) uniform Params {
-	mat4 proj;             // forward camera projection (view -> clip)
-	mat4 inv_view;         // camera transform (view -> world)
-	vec4 raster_and_range; // raster_size.xy, min_elevation, max_elevation
-	vec4 ramp_params;      // levels, major_every, unused, unused
-	vec4 contour_weights;  // minor_width_px, major_width_px, minor_opacity, major_opacity
-	vec4 contour_flags;    // contours_enabled, smooth_ramp, minor_fade, major_contours_enabled
-	vec4 mode_flags;       // invert_ramp, unused, unused, unused
-	vec4 contour_color;
-	vec4 background_color;
+layout(push_constant, std430) uniform Params {
+	vec2 size;
+	float cam_y;
+	float near_plane;
+	float far_plane;
+	float height_min;
+	float height_max;
+	float contour_interval;
+	float contour_width;
+	float sea_level;
+	float depth_reversed;
+	float major_every;
+	float major_width_mult;
+	float pad;
 } p;
 
-// Reconstruct world-space elevation (world Y) at a pixel center: inv-projection,
-// perspective divide, inv-view. inv_proj is computed once in main() (GLSL
-// inverse() is reliable here). Returns the raw depth for background detection.
-float elevation_at(vec2 uv, mat4 inv_proj, out float out_depth) {
-	// Compute shaders have no implicit LOD, so sample with textureLod, never
-	// texture() (plain texture() reads as zero here).
-	float depth = textureLod(depth_texture, uv, 0.0).r;
-	out_depth = depth;
-	vec4 view = inv_proj * vec4(uv * 2.0 - 1.0, depth, 1.0);
-	view.xyz /= view.w;
-	vec4 world = p.inv_view * vec4(view.xyz, 1.0);
-	return world.y;
-}
-
-// Anti-aliased iso-line mask. deriv is the screen-space step gradient
-// (reconstructed by neighbor differencing, since fwidth is unavailable in
-// compute shaders). Flat ground -> zero deriv -> no line.
-float iso(float q, float deriv, float width_px) {
-	if (deriv <= 0.0) {
-		return 0.0;
-	}
-	float dist = abs(fract(q - 0.5) - 0.5);
-	return 1.0 - clamp(dist / (deriv * width_px), 0.0, 1.0);
+float world_y_at(vec2 uv) {
+	float d = texture(depth_tex, uv).r;
+	float view_z = (p.depth_reversed > 0.5)
+		? mix(p.far_plane, p.near_plane, d)
+		: mix(p.near_plane, p.far_plane, d);
+	return p.cam_y - view_z;
 }
 
 void main() {
 	ivec2 px = ivec2(gl_GlobalInvocationID.xy);
-	ivec2 size = ivec2(p.raster_and_range.xy);
-	if (px.x >= size.x || px.y >= size.y) {
+	if (px.x >= int(p.size.x) || px.y >= int(p.size.y)) {
+		return;
+	}
+	vec2 uv = (vec2(px) + 0.5) / p.size;
+	vec3 water = vec3(0.16, 0.34, 0.52);
+
+	float d = texture(depth_tex, uv).r;
+	bool is_background = (p.depth_reversed > 0.5) ? (d <= 0.00001) : (d >= 0.99999);
+	if (is_background) {
+		imageStore(color_image, px, vec4(water, 1.0));
 		return;
 	}
 
-	vec2 inv_size = 1.0 / p.raster_and_range.xy;
-	vec2 uv = (vec2(px) + 0.5) * inv_size;
-
-	mat4 inv_proj = inverse(p.proj);
-
-	float depth;
-	float elevation = elevation_at(uv, inv_proj, depth);
-
-	// Empty space = near/far plane. Covers reverse-Z and standard depth.
-	bool is_background = (depth <= 0.000001 || depth >= 0.999999);
-
-	float min_e = p.raster_and_range.z;
-	float max_e = p.raster_and_range.w;
-	float levels_f = max(p.ramp_params.x, 1.0);
-	float major_every = max(p.ramp_params.y, 1.0);
-	float minor_width_px = p.contour_weights.x;
-	float major_width_px = p.contour_weights.y;
-	float minor_opacity = p.contour_weights.z;
-	float major_opacity = p.contour_weights.w;
-	bool contours_enabled = p.contour_flags.x > 0.5;
-	bool smooth_ramp = p.contour_flags.y > 0.5;
-	float minor_fade = p.contour_flags.z;
-	bool major_contours_enabled = p.contour_flags.w > 0.5;
-	bool invert_ramp = p.mode_flags.x > 0.5;
-
-	float range = max(max_e - min_e, 0.0001);
-	float te = clamp((elevation - min_e) / range, 0.0, 1.0);
-
-	float band = clamp(floor(te * levels_f), 0.0, levels_f - 1.0);
-	float ramp = smooth_ramp ? te : band / max(levels_f - 1.0, 1.0);
-
-	// invert_ramp flips the color-to-elevation mapping (e.g. high -> dark end).
-	if (invert_ramp) {
-		ramp = 1.0 - ramp;
+	float wy = world_y_at(uv);
+	if (wy < p.sea_level) {
+		imageStore(color_image, px, vec4(water, 1.0));
+		return;
 	}
 
-	// The gradient is the single source of band color: low elevation samples the
-	// left of the ramp, high elevation the right. A 2-stop gradient reproduces the
-	// old monochrome ink->paper look; multi-stop gradients give hypsometric tints.
-	vec3 col = texture(gradient_texture, vec2(clamp(ramp, 0.0, 1.0), 0.5)).rgb;
+	// Step the tint per elevation band, sampled from the gradient texture.
+	float span = max(0.0001, p.height_max - p.height_min);
+	float band_center = (floor(wy / p.contour_interval) + 0.5) * p.contour_interval;
+	float t = clamp((band_center - p.height_min) / span, 0.0, 1.0);
+	vec3 col = texture(ramp_tex, vec2(t, 0.5)).rgb;
 
-	if (contours_enabled) {
-		// Step-space gradient from neighbor texels (replaces fwidth(q)).
-		float depth_dx;
-		float depth_dy;
-		float elev_dx = elevation_at(uv + vec2(inv_size.x, 0.0), inv_proj, depth_dx);
-		float elev_dy = elevation_at(uv + vec2(0.0, inv_size.y), inv_proj, depth_dy);
-
-		float q = te * levels_f;
-		float te_dx = clamp((elev_dx - min_e) / range, 0.0, 1.0);
-		float te_dy = clamp((elev_dy - min_e) / range, 0.0, 1.0);
-		float deriv_q = abs(te_dx * levels_f - q) + abs(te_dy * levels_f - q);
-
-		float minor = iso(q, deriv_q, minor_width_px);
-		float major = iso(q / major_every, deriv_q / major_every, major_width_px);
-
-		float fade = clamp(1.0 - deriv_q * minor_fade, 0.0, 1.0);
-		minor *= fade;
-
-		col = mix(col, p.contour_color.rgb, minor * minor_opacity);
-		if (major_contours_enabled) {
-			col = mix(col, p.contour_color.rgb, major * major_opacity);
-		}
-	}
-
-	col = mix(col, p.background_color.rgb, float(is_background));
+	// Contour lines at band boundaries, thicker on major contours.
+	vec2 texel = 1.0 / p.size;
+	float wyx = world_y_at(uv + vec2(texel.x, 0.0));
+	float wyy = world_y_at(uv + vec2(0.0, texel.y));
+	float grad = max(abs(wyx - wy), abs(wyy - wy)) + 0.00001;
+	float band_index = floor(wy / p.contour_interval + 0.5);
+	bool is_major = (p.major_every > 0.5) && (abs(mod(band_index, p.major_every)) < 0.5);
+	float width = p.contour_width * (is_major ? p.major_width_mult : 1.0);
+	float dist_to_line = abs(wy - band_index * p.contour_interval);
+	float aa = grad * width;
+	float line = 1.0 - smoothstep(0.0, aa, dist_to_line);
+	col = mix(col, vec3(0.16, 0.11, 0.07), line);
 
 	imageStore(color_image, px, vec4(col, 1.0));
 }
