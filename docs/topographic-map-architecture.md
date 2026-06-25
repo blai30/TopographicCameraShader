@@ -22,11 +22,16 @@ TINT (per consumer, per pixel)
   window and draws the stepped hypsometric tint. No contour code.
 
 CONTOURS (vector)
-  MapUi reads the height buffer back to the CPU once (main thread), then
-  ContourExtractor + ContourField run Marching Squares per level on a background
-  thread (levels in parallel), chaining and simplifying into polylines.
-  ContourLayer (a Control) strokes those polylines for the current window with
-  constant-pixel-width anti-aliased lines, redrawing only when the window moves.
+  The contour field is baked at edit time FROM THE CAMERA HEIGHT BUFFER (the same
+  buffer the tint samples, so the lines land exactly on the band edges) into a
+  committed ContourFieldResource (.res). At load, MapUi reads that resource and
+  inflates a ContourField directly, so the lines are present on the first frame
+  with no readback. The bake reuses the runtime extraction path (read the buffer
+  back, run Marching Squares per level on a background thread, chain and simplify;
+  ContourSource + ContourExtractor + ContourField), which also stays available at
+  runtime for dynamic or non-heightmap geometry. ContourLayer (a Control) strokes
+  the polylines for the current window with constant-pixel-width anti-aliased
+  lines, redrawing only when it moves.
 
 MARKER (overlay)
   A constant-size SDF arrow (marker_overlay.gdshader) drawn into a small UI
@@ -50,14 +55,17 @@ Reusable addon (`addons/topographic/`):
 - `MarchingSquares.cs` (pure C#, no Godot types): `ContourPoint` struct; `ExtractSegments(field, mask, cols, rows, level)` returns flat segment endpoint pairs in normalized `[0,1]` space; `ChainSegments(segments)` links them into polylines; `Simplify(points, epsilon)` runs Ramer-Douglas-Peucker to cut the dense per-cell point count.
 - `ContourField.cs` (pure C#): `ContourPolyline` (points, level, major flag, bounding box) and `ContourField.Build(field, mask, cols, rows, heightMin, heightMax, interval, majorEvery, simplifyEpsilon)`. Levels are independent and extracted in parallel (`Parallel.For`); each polyline is simplified before storage.
 - `ContourExtractor.cs` (pure C#): `Build(byte[] data, srcW, srcH, ...)` parses raw `Rgbaf` bytes (16 bytes/pixel, R height, G mask), optionally box-downsamples to `maxResolution`, and calls `ContourField.Build`. Pure so it can run on a background thread; the caller does the Godot-side image readback.
+- `ContourFieldSerializer.cs` (pure C#): `Flatten(field, out pointsXy, out pointCounts, out levels)` packs a `ContourField` into interleaved-xy and per-polyline arrays; `Inflate(pointsXy, pointCounts, levels, heightMin, heightMax, interval, majorEvery)` rebuilds it, recomputing each polyline's bounding box and major flag (so neither is stored). No Godot types, so the round-trip is unit-tested.
+- `ContourFieldResource.cs` (Godot `Resource`, `[GlobalClass]`): a thin serialization wrapper holding the flattened arrays as packed primitives (`PointsXy`, `PointCounts`, `Levels`) plus the level params. `FromField`/`ToField` delegate to `ContourFieldSerializer`. This is what the bake saves and `MapUi` loads.
+- `ContourSource.cs` (Godot): `BuildFromViewportAsync(viewport, ...)` renders the viewport `Once`, reads the buffer back, and `Task.Run`s the pure `ContourExtractor.Build` off the main thread. This is both the edit-time bake source (the demo bakes its `contours.res` from this) and the runtime/general path for dynamic or non-heightmap geometry.
 - `ContourLayer.cs` (Godot `Control`): holds a `ContourField`, a window (`SetWindow(center, span)`, which redraws only when the window actually changes), and draws on `_Draw` with `DrawPolyline(..., width_px, antialiased: true)`. Culls polylines by bounding box. Line color is either a static `LineColor` or, when `ContourDynamic` is true, the `ColorRamp` (a `GradientTexture1D`) sampled at the line's elevation and darkened by `ContourDarken`. Major lines use `MajorWidthPx`, minor lines `MinorWidthPx`.
 - `marker_overlay.gdshader` (canvas_item): SDF arrow for the player marker, `fwidth`-antialiased, drawn into a small UI `Control` rotated to the player's heading.
 
 Demo (`TopoDemo/`):
 
-- `scripts/MapUi.cs`: orchestration. Reads the height buffer once, runs the contour build on a background thread (`Task.Run`) and assigns the result to the layers; owns the pan/zoom window state and drives the two tint materials, two `ContourLayer`s, and two marker overlays each frame. The marker heading comes from the player `Body` node's yaw (`MarkerRotation()`, currently `-PlayerBody.GlobalRotation.Y`; flip the sign if the arrow points backward).
-- `scenes/Demo.tscn`: the `MapView` SubViewport + `TopDownCamera` + compositor, the two map `ColorRect`s (tint), each with a `Contours` child (`ContourLayer`) and a `Marker` child (overlay), and the HUD.
-- `scripts/tools/TerrainBaker.cs`: edit-time tool that bakes `heightmap.exr` (512x512) and `terrain_collision.res`. Not shipped in the running game.
+- `scripts/MapUi.cs`: orchestration. Loads the baked `ContourFieldResource` (the `BakedContours` export) at `_Ready` and inflates it into a `ContourField` for both layers (`LoadBakedContours`), so the lines are present on the first frame with no readback; owns the pan/zoom window state and drives the two tint materials, two `ContourLayer`s, and two marker overlays each frame. It also owns the edit-time contour bake (`BakeContoursAsync`, gated behind the `bake-contours` command-line arg): it renders the `MapView` buffer via `ContourSource`, saves `contours.res`, and quits. The marker heading comes from the player `Body` node's yaw (`MarkerRotation()`, currently `-PlayerBody.GlobalRotation.Y`; flip the sign if the arrow points backward).
+- `scenes/Demo.tscn`: the `MapView` SubViewport + `TopDownCamera` + compositor, the two map `ColorRect`s (tint), each with a `Contours` child (`ContourLayer`) and a `Marker` child (overlay), the HUD, and the `MapUi` node's `BakedContours` assigned to `assets/contours.res`.
+- `scripts/TerrainBaker.cs`: edit-time, headless, CPU-only tool that bakes `heightmap.exr` (512x512) and `terrain_collision.res`. Not shipped in the running game. Run with `godot --headless --path . --script res://TopoDemo/scripts/TerrainBaker.cs`. It does NOT bake the contours: those must come from the rendered camera buffer (see the contour bake below), which needs a real GPU and so cannot run under `--headless`.
 
 Tests (`tests/MarchingSquaresTests/`): a standalone console project that links the pure-C# files and asserts on small known grids. Run with `dotnet run --project tests/MarchingSquaresTests/MarchingSquaresTests.csproj` and expect `ALL PASS` (exit 0).
 
@@ -112,22 +120,21 @@ Project and build:
 
 ## Performance and load behavior
 
-- The contour build (readback parse + Marching Squares + chaining + simplification) is the only heavy one-time cost. It runs on a background thread via `Task.Run`; the continuation resumes on the main thread (Godot installs a synchronization context), so assigning `Field` and calling `QueueRedraw` after the `await` is main-thread-safe. Running it inline on the main thread caused a visible startup stutter.
-- Within the build, the contour levels are extracted in parallel (`Parallel.For`), since each level is independent.
+- The demo has no runtime contour cost: the field is baked into `contours.res` at edit time and `MapUi.LoadBakedContours` inflates it synchronously at `_Ready`, so the lines are present on the very first frame with no readback and no startup flash.
+- `ContourSource.BuildFromViewportAsync` (used by the edit-time bake, and at runtime for dynamic or non-heightmap geometry, but NOT on the demo's play path) is the only heavy one-time cost when it runs. It does the readback parse + Marching Squares + chaining + simplification on a background thread via `Task.Run`; the continuation resumes on the main thread (Godot installs a synchronization context), so assigning `Field` and calling `QueueRedraw` after the `await` is main-thread-safe. Within the build, the contour levels are extracted in parallel (`Parallel.For`), since each level is independent.
 - Polylines are simplified with Ramer-Douglas-Peucker (`simplifyEpsilon`, default `0.00015` normalized, about 1px at max zoom, so visually lossless) so far fewer points are transformed and drawn each frame.
 - `ContourLayer.SetWindow` redraws only when the window changes, so an idle open map costs nothing even though `_Process` calls it every frame.
-- Remaining wait: because the contours derive from the height buffer, which needs a frame to render, they cannot be ready on the very first frame. The parallel build reduces the gap to a brief flash. The decided path to true zero-wait is baking (see follow-ups).
 
 ## Tuning parameters
 
 - Contour appearance is on the two `Contours` (`ContourLayer`) nodes: `MinorWidthPx`, `MajorWidthPx`, `ContourDynamic` (gradient-derived vs static color), `ColorRamp`, `ContourDarken`, `LineColor`.
-- Contour levels are on `MapUi`: `ContourInterval`, `MajorEvery`, `HeightMin`/`HeightMax`, and `ContourResolution` (extraction grid; lower is faster and smoother but misaligns the tint).
+- Contour levels are baked, so they are set on `MapUi` (the `ContourHeightMin`, `ContourHeightMax`, `ContourInterval`, `ContourMajorEvery`, `ContourResolution` constants used by `BakeContoursAsync`) and stored in `contours.res`; change them there and re-run the contour bake. They must match the tint material's `height_min`/`height_max`/`contour_interval` so lines land on band edges.
 - The palette is the `color_ramp` gradient (a `GradientTexture1D`) assigned to both tint materials and both contour layers. It is the single source of all map color; water is just the gradient's low end. The demo uses `addons/topographic/gradients/hypsometric_deep.tres`; the addon ships several preset gradients in that folder.
 - The marker overlays expose `marker_color` and `outline_color` (on the material) and `MarkerScreenSize` (on `MapUi`).
 
 ## Known limitations and follow-ups
 
-- DECIDED NEXT STEP (not yet implemented): bake the contours at edit time so they are present on the first frame with zero runtime cost, consistent with how the heightmap and collision are already baked. Plan: add a serializable contour resource (flatten `ContourField` into packed arrays plus the level params; recompute bounding boxes and major flags on load), extend `TerrainBaker` to build the field from the committed `heightmap.exr` (bilinearly upsampled to 2048 so the line crossings still match the 2048 buffer tint and band edges do not bleed) and `ResourceSaver.Save` it, and have `MapUi` load that resource instantly instead of extracting at runtime. Keep the runtime `ContourExtractor` in the addon for the general (non-static or non-heightmap) case. The user runs the baker once (`godot --headless --path . --script res://TopoDemo/scripts/tools/TerrainBaker.cs`), same as the heightmap and collision.
+- DONE: contours are baked at edit time, FROM THE CAMERA HEIGHT BUFFER. `MapUi.BakeContoursAsync` (gated behind the `bake-contours` command-line arg) renders the `MapView` buffer via `ContourSource.BuildFromViewportAsync`, flattens the field via `ContourFieldSerializer`, and `ResourceSaver.Save`s a `ContourFieldResource` to `assets/contours.res`. `MapUi` loads that resource at `_Ready` and inflates it, so the lines are present on the first frame with zero runtime extraction. Re-bake after a terrain change (needs a real GPU, so NOT `--headless`): `godot --path . res://TopoDemo/scenes/Demo.tscn -- bake-contours`. Why the buffer and not `heightmap.exr`: an early version baked from the heightmap upsampled to 2048. It looked aligned on average (the buffer matches a texel-center bilinear of the heightmap to ~0.05 m mean) but the camera buffer is the rendered MESH (vertices resampled at uv `i/511`, triangle-interpolated, reconstructed from a quantized depth buffer), which differs from the raw heightmap by up to ~1.4 m in spots. On gentle slopes contour position is `height_error / gradient`, so that small difference shifted the lines visibly off the bands. Baking from the buffer makes the field identical to what the tint samples, so the lines sit exactly on the band edges regardless of slope.
 - The player marker is done: a constant-size, `fwidth`-antialiased SDF arrow UI overlay on each map (`marker_overlay.gdshader`), replacing the removed in-world marker quad. The old `marker.gdshader` was deleted. Verify the heading sign once in-editor.
 - Contour extraction is one-time (static terrain). `ContourField`/`MapUi` could expose a rebuild path for terrain that changes; real-time per-frame extraction of fast-changing terrain is not built.
 - The addon's `TopographicCompositorEffect` still produces the height buffer and is in use; the old per-pixel contour code in the styling shader was removed.

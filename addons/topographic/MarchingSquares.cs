@@ -203,7 +203,7 @@ public static class MarchingSquares
         int n = points.Count;
         if (n < 3)
         {
-            return new(points);
+            return [.. points];
         }
 
         bool[] keep = new bool[n];
@@ -220,19 +220,15 @@ public static class MarchingSquares
             for (int i = first + 1; i < last; i++)
             {
                 float d2 = PointSegmentDistanceSq(points[i], points[first], points[last]);
-                if (d2 > maxDist2)
-                {
-                    maxDist2 = d2;
-                    index = i;
-                }
+                if (!(d2 > maxDist2)) continue;
+                maxDist2 = d2;
+                index = i;
             }
 
-            if (index != -1 && maxDist2 > eps2)
-            {
-                keep[index] = true;
-                stack.Push((first, index));
-                stack.Push((index, last));
-            }
+            if (index == -1 || !(maxDist2 > eps2)) continue;
+            keep[index] = true;
+            stack.Push((first, index));
+            stack.Push((index, last));
         }
 
         var result = new List<ContourPoint>();

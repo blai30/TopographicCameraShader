@@ -28,11 +28,17 @@ public partial class MapUi : Control
 
     [Export] public ContourLayer MinimapContours;
     [Export] public ContourLayer WorldMapContours;
-    [Export] public float HeightMin = -40.0f;
-    [Export] public float HeightMax = 110.0f;
-    [Export] public float ContourInterval = 10.0f;
-    [Export] public int MajorEvery = 5;
-    [Export] public int ContourResolution = 2048;
+    [Export] public ContourFieldResource BakedContours;
+
+    // Contour level params, used only by the edit-time bake (the play path reads
+    // them from the baked resource). They match the tint material's height range
+    // and interval so the baked lines land on the tint band edges.
+    private const float ContourHeightMin = -40.0f;
+    private const float ContourHeightMax = 110.0f;
+    private const float ContourInterval = 10.0f;
+    private const int ContourMajorEvery = 5;
+    private const int ContourResolution = 2048;
+    private const string ContourPath = "res://TopoDemo/assets/contours.res";
 
     [Export] public Control MinimapMarker;
     [Export] public Control WorldMapMarker;
@@ -60,7 +66,30 @@ public partial class MapUi : Control
         SetupMarker(MinimapMarker);
         SetupMarker(WorldMapMarker);
 
-        _ = BuildContoursAsync();
+        if (System.Array.IndexOf(OS.GetCmdlineUserArgs(), "bake-contours") >= 0)
+        {
+            _ = BakeContoursAsync();
+            return;
+        }
+
+        LoadBakedContours();
+    }
+
+    // Edit-time bake: render the height buffer once with a real GPU, extract the
+    // contour field from that buffer (the exact field the tint samples, so the
+    // lines land on the band edges), and save it to the committed contours.res.
+    // The heightmap-derived field is close but differs enough on gentle slopes to
+    // shift the lines off the bands, so the contours must come from the buffer.
+    // Run with: godot --path . res://TopoDemo/scenes/Demo.tscn -- bake-contours
+    private async System.Threading.Tasks.Task BakeContoursAsync()
+    {
+        var field = await ContourSource.BuildFromViewportAsync(MapViewport, ContourHeightMin, ContourHeightMax,
+            ContourInterval, ContourMajorEvery, ContourResolution);
+        var resource = ContourFieldResource.FromField(field, ContourHeightMin, ContourHeightMax, ContourInterval,
+            ContourMajorEvery);
+        var error = ResourceSaver.Save(resource, ContourPath);
+        GD.Print($"Baked contours: {error} -> {ContourPath} ({field.Polylines.Count} polylines)");
+        GetTree().Quit();
     }
 
     private void SetupMarker(Control marker)
@@ -74,24 +103,18 @@ public partial class MapUi : Control
     // arrow points the wrong way.
     private float MarkerRotation() => -PlayerBody.GlobalRotation.Y;
 
-    // Render the height buffer once, read it back, and build the contour field.
-    private async System.Threading.Tasks.Task BuildContoursAsync()
+    // Load the baked contour field and hand it to both layers. Present on the
+    // first frame with no buffer readback. Re-run TerrainBaker after changing the
+    // terrain to regenerate contours.res.
+    private void LoadBakedContours()
     {
-        MapViewport.RenderTargetUpdateMode = SubViewport.UpdateMode.Once;
-        await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
-        await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
+        if (BakedContours == null)
+        {
+            GD.PrintErr("MapUi: BakedContours is not assigned; run TerrainBaker to bake contours.res.");
+            return;
+        }
 
-        var image = MapViewport.GetTexture().GetImage();
-        image.Convert(Image.Format.Rgbaf);
-        byte[] data = image.GetData();
-        int width = image.GetWidth();
-        int height = image.GetHeight();
-
-        // Marching Squares is pure C#; run it off the main thread so the one-time
-        // build does not stutter the game on startup.
-        var field = await System.Threading.Tasks.Task.Run(() => ContourExtractor.Build(
-            data, width, height, HeightMin, HeightMax, ContourInterval, MajorEvery, ContourResolution));
-
+        var field = BakedContours.ToField();
         MinimapContours.Field = field;
         WorldMapContours.Field = field;
         MinimapContours.QueueRedraw();
@@ -101,11 +124,9 @@ public partial class MapUi : Control
     public override void _Process(double delta)
     {
         UpdateMinimap();
-        if (WorldMapRoot.Visible)
-        {
-            LayoutWorldMap();
-            UpdateWorldMap();
-        }
+        if (!WorldMapRoot.Visible) return;
+        LayoutWorldMap();
+        UpdateWorldMap();
     }
 
     public override void _UnhandledInput(InputEvent inputEvent)

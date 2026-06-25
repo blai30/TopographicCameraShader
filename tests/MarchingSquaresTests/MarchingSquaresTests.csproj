@@ -10,5 +10,6 @@
     <Compile Include="Program.cs" />
     <Compile Include="..\..\addons\topographic\MarchingSquares.cs" />
     <Compile Include="..\..\addons\topographic\ContourField.cs" />
+    <Compile Include="..\..\addons\topographic\ContourFieldSerializer.cs" />
   </ItemGroup>
 </Project>
