@@ -3,7 +3,7 @@ using Godot;
 namespace TopographicMap.TopoDemo;
 
 // Edit-time command-line tool. From the repo root:
-//   godot --headless --path . --script res://TopoDemo/scripts/tools/TerrainBaker.cs
+//   godot --headless --path . --script res://TopoDemo/scripts/TerrainBaker.cs
 // Bakes the showcase continent into two committed static assets (a normalized
 // heightmap EXR and a HeightMapShape3D collision .res), then quits. Never
 // referenced by the Demo scene or any autoload, so the shipped game contains no
@@ -60,7 +60,7 @@ public partial class TerrainBaker : MainLoop
     {
         // Collision HeightMapShape3D, heights in world units, same field as the heightmap.
         float[] data = new float[CollisionGrid * CollisionGrid];
-        float cell = WorldSize / (CollisionGrid - 1); // world units between grid points after the node scale
+        const float cell = WorldSize / (CollisionGrid - 1); // world units between grid points after the node scale
         float minSeen = float.MaxValue;
         float maxSeen = float.MinValue;
         int below = 0;
@@ -179,9 +179,8 @@ public partial class TerrainBaker : MainLoop
         // dips below sea level in the lowlands to read as water; its width and depth
         // vary along its length, and it fades near the massifs so the river weaves
         // between the mountains instead of slotting straight through one.
-        float meander = _warp.GetNoise2D(800f, wz * 0.22f) * 70f
-                        + _warp.GetNoise2D(1200f, wz * 0.07f) * 50f
-                        + Mathf.Sin(wz * 0.006f) * 35f;
+        float meander = _warp.GetNoise2D(800f, wz * 0.22f) * 70f + _warp.GetNoise2D(1200f, wz * 0.07f) * 50f +
+                        Mathf.Sin(wz * 0.006f) * 35f;
         float riverX = -10f + meander;
         float valleyWidth = 78f + _warp.GetNoise2D(wz, 300f) * 22f;
         float across = Mathf.Clamp(Mathf.Abs(wx - riverX) / valleyWidth, 0f, 1f);

@@ -11,6 +11,7 @@
 [ext_resource type="Script" uid="uid://ku8y1iucj7fs" path="res://TopoDemo/scripts/MapUi.cs" id="60_mapui"]
 [ext_resource type="Shader" uid="uid://do6bmelduhhnx" path="res://addons/topographic/topographic_style.gdshader" id="70_style"]
 [ext_resource type="Script" uid="uid://ch8h1lwga1tmm" path="res://addons/topographic/ContourLayer.cs" id="72_contour"]
+[ext_resource type="Resource" path="res://TopoDemo/assets/contours.res" id="73_baked"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_sky"]
 sky_top_color = Color(0.28, 0.45, 0.75, 1)
@@ -169,6 +170,7 @@ WorldMapContours = NodePath("WorldMap/WorldMapImage/Contours")
 MinimapMarker = NodePath("Minimap/Marker")
 WorldMapMarker = NodePath("WorldMap/WorldMapImage/Marker")
 PlayerBody = NodePath("../../Player/Body")
+BakedContours = ExtResource("73_baked")
 
 [node name="Minimap" type="ColorRect" parent="Hud/MapUi" unique_id=1261521365]
 material = SubResource("ShaderMaterial_minimap")

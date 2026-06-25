@@ -7,7 +7,7 @@ public partial class PlayerController : CharacterBody3D
     [Export] public float MoveSpeed = 16.0f;
     [Export] public float SprintSpeed = 30.0f;
     [Export] public float JumpVelocity = 8.0f;
-    [Export] public float MouseSensitivity = 0.005f;
+    [Export] public float MouseSensitivity = 0.002f;
     [Export] public float MinPitch = -1.2f;
     [Export] public float MaxPitch = 0.4f;
 

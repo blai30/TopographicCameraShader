@@ -67,5 +67,40 @@ Check(MarchingSquares.Simplify(line, 0.001f).Count == 2, "collinear polyline sim
 var corner = new List<ContourPoint> { new(0f, 0f), new(0.5f, 0.5f), new(1f, 0f) };
 Check(MarchingSquares.Simplify(corner, 0.001f).Count == 3, "corner point is kept");
 
+// Serializer round-trip: flatten a built field and inflate it back. Points,
+// levels, major flags, and bounding boxes must match. interval 10 over [0,100]
+// puts a major contour at world 50 (index 5), so the major flag is exercised.
+float[] serRamp =
+{
+    0.00f, 0.25f, 0.50f, 0.75f, 1.00f,
+    0.00f, 0.25f, 0.50f, 0.75f, 1.00f,
+};
+float[] serMask = new float[10];
+Array.Fill(serMask, 1f);
+var serBuilt = ContourField.Build(serRamp, serMask, 5, 2, 0f, 100f, 10f, 5);
+ContourFieldSerializer.Flatten(serBuilt, out var serPts, out var serCounts, out var serLevels);
+var serInflated = ContourFieldSerializer.Inflate(serPts, serCounts, serLevels, 0f, 100f, 10f, 5);
+
+Check(serInflated.Polylines.Count == serBuilt.Polylines.Count, "round-trip preserves polyline count");
+
+bool roundTripOk = serInflated.Polylines.Count == serBuilt.Polylines.Count;
+for (int i = 0; roundTripOk && i < serBuilt.Polylines.Count; i++)
+{
+    var src = serBuilt.Polylines[i];
+    var dst = serInflated.Polylines[i];
+    if (src.Points.Count != dst.Points.Count) { roundTripOk = false; break; }
+    for (int j = 0; j < src.Points.Count; j++)
+    {
+        if (MathF.Abs(src.Points[j].X - dst.Points[j].X) > 1e-6f
+            || MathF.Abs(src.Points[j].Y - dst.Points[j].Y) > 1e-6f) { roundTripOk = false; }
+    }
+    if (MathF.Abs(src.Level - dst.Level) > 1e-6f) roundTripOk = false;
+    if (src.IsMajor != dst.IsMajor) roundTripOk = false;
+    if (MathF.Abs(src.MinX - dst.MinX) > 1e-6f || MathF.Abs(src.MaxX - dst.MaxX) > 1e-6f
+        || MathF.Abs(src.MinY - dst.MinY) > 1e-6f || MathF.Abs(src.MaxY - dst.MaxY) > 1e-6f) roundTripOk = false;
+}
+Check(roundTripOk, "round-trip preserves points, level, major flag, bbox");
+Check(serInflated.Polylines.Exists(p => p.IsMajor), "major flag recomputed on inflate (level 50)");
+
 Console.WriteLine(failures == 0 ? "ALL PASS" : failures + " FAILED");
 return failures == 0 ? 0 : 1;
