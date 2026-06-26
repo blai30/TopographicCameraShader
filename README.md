@@ -8,12 +8,21 @@ An all-GPU topographic map for Godot: a depth-derived height buffer, a hypsometr
 
 Every map uses a `GradientTexture1D` palette that maps elevation to color, shared by both the hypsometric tint and the contour lines. The addon ships twelve presets (set one on the material's `elevation_gradient`); the same terrain through each:
 
-|                                                                                                 |                                                                                           |                                                                   |
-| ----------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| `classic_ink` ![classic_ink preset](screenshots/preset-classic_ink.png)                         | `sepia_vintage` ![sepia_vintage preset](screenshots/preset-sepia_vintage.png)             | `grayscale` ![grayscale preset](screenshots/preset-grayscale.png) |
-| `hypsometric_classic` ![hypsometric_classic preset](screenshots/preset-hypsometric_classic.png) | `hypsometric_atlas` ![hypsometric_atlas preset](screenshots/preset-hypsometric_atlas.png) | `nautical` ![nautical preset](screenshots/preset-nautical.png)    |
-| `heatmap` ![heatmap preset](screenshots/preset-heatmap.png)                                     | `magma` ![magma preset](screenshots/preset-magma.png)                                     | `alpine` ![alpine preset](screenshots/preset-alpine.png)          |
-| `blueprint` ![blueprint preset](screenshots/preset-blueprint.png)                               | `matrix` ![matrix preset](screenshots/preset-matrix.png)                                  | `viridis` ![viridis preset](screenshots/preset-viridis.png)       |
+| `classic_ink`                                             | `sepia_vintage`                                               | `grayscale`                                           |
+| --------------------------------------------------------- | ------------------------------------------------------------- | ----------------------------------------------------- |
+| ![classic_ink preset](screenshots/preset-classic_ink.png) | ![sepia_vintage preset](screenshots/preset-sepia_vintage.png) | ![grayscale preset](screenshots/preset-grayscale.png) |
+
+| `hypsometric_classic`                                                     | `hypsometric_atlas`                                                   | `nautical`                                          |
+| ------------------------------------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------- |
+| ![hypsometric_classic preset](screenshots/preset-hypsometric_classic.png) | ![hypsometric_atlas preset](screenshots/preset-hypsometric_atlas.png) | ![nautical preset](screenshots/preset-nautical.png) |
+
+| `heatmap`                                         | `magma`                                       | `alpine`                                        |
+| ------------------------------------------------- | --------------------------------------------- | ----------------------------------------------- |
+| ![heatmap preset](screenshots/preset-heatmap.png) | ![magma preset](screenshots/preset-magma.png) | ![alpine preset](screenshots/preset-alpine.png) |
+
+| `blueprint`                                           | `matrix`                                        | `viridis`                                         |
+| ----------------------------------------------------- | ----------------------------------------------- | ------------------------------------------------- |
+| ![blueprint preset](screenshots/preset-blueprint.png) | ![matrix preset](screenshots/preset-matrix.png) | ![viridis preset](screenshots/preset-viridis.png) |
 
 ## Requirements
 
