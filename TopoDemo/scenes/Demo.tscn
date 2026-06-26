@@ -60,17 +60,17 @@ height = 1.8
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_minimap"]
 shader = ExtResource("70_style")
-shader_parameter/color_ramp = ExtResource("8_47k30")
+shader_parameter/elevation_gradient = ExtResource("8_47k30")
 shader_parameter/height_min = -40.0
 shader_parameter/height_max = 110.0
 shader_parameter/contour_interval = 10.0
+shader_parameter/lines_per_major = 5.0
+shader_parameter/minor_line_width_px = 1.1
+shader_parameter/major_line_width_px = 1.9
+shader_parameter/contour_line_darken = 0.6
 shader_parameter/window_center = Vector2(0.5, 0.5)
 shader_parameter/window_span = Vector2(0.143, 0.143)
 shader_parameter/px_per_uv = 1.0
-shader_parameter/major_every = 5.0
-shader_parameter/minor_width_px = 1.1
-shader_parameter/major_width_px = 1.9
-shader_parameter/contour_darken = 0.6
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_marker_overlay"]
 shader = ExtResource("40_marker")
@@ -79,17 +79,17 @@ shader_parameter/outline_color = Color(1, 1, 1, 1)
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_worldmap"]
 shader = ExtResource("70_style")
-shader_parameter/color_ramp = ExtResource("10_47k30")
+shader_parameter/elevation_gradient = ExtResource("10_47k30")
 shader_parameter/height_min = -40.0
 shader_parameter/height_max = 110.0
 shader_parameter/contour_interval = 10.0
+shader_parameter/lines_per_major = 5.0
+shader_parameter/minor_line_width_px = 1.1
+shader_parameter/major_line_width_px = 1.9
+shader_parameter/contour_line_darken = 0.6
 shader_parameter/window_center = Vector2(0.5, 0.5)
 shader_parameter/window_span = Vector2(1, 1)
 shader_parameter/px_per_uv = 1.0
-shader_parameter/major_every = 5.0
-shader_parameter/minor_width_px = 1.1
-shader_parameter/major_width_px = 1.9
-shader_parameter/contour_darken = 0.6
 
 [node name="Demo" type="Node3D" unique_id=2147396049]
 
