@@ -1,17 +1,16 @@
 [gd_scene format=3 uid="uid://dhsq8xxae6jw5"]
 
-[ext_resource type="Script" uid="uid://mvvi72cbryux" path="res://TopoDemo/scripts/Demo.cs" id="1_ujjjx"]
 [ext_resource type="Material" uid="uid://baq14ca08hfn7" path="res://TopoDemo/assets/water_material.tres" id="5_nl2f7"]
 [ext_resource type="CompositorEffect" uid="uid://btxcwgfvxwdml" path="res://TopoDemo/assets/map_view_compositor_effect.tres" id="6_hqj3e"]
 [ext_resource type="Material" uid="uid://dqiaexa118y58" path="res://TopoDemo/assets/terrain_material.tres" id="7_terrainmat"]
-[ext_resource type="Shape3D" path="res://TopoDemo/assets/terrain_collision.res" id="8_terraincol"]
+[ext_resource type="Shape3D" uid="uid://p2rky5bmk7dj" path="res://TopoDemo/assets/terrain_collision.res" id="8_terraincol"]
 [ext_resource type="Texture2D" uid="uid://go7bx267tmle" path="res://addons/topographic/gradients/hypsometric_deep.tres" id="10_wu0y7"]
 [ext_resource type="Script" uid="uid://cb6kukq0i4na7" path="res://TopoDemo/scripts/PlayerController.cs" id="20_ypqk8"]
 [ext_resource type="Shader" uid="uid://c526piefpacph" path="res://addons/topographic/marker_overlay.gdshader" id="40_marker"]
 [ext_resource type="Script" uid="uid://ku8y1iucj7fs" path="res://TopoDemo/scripts/MapUi.cs" id="60_mapui"]
 [ext_resource type="Shader" uid="uid://do6bmelduhhnx" path="res://addons/topographic/topographic_style.gdshader" id="70_style"]
 [ext_resource type="Script" uid="uid://ch8h1lwga1tmm" path="res://addons/topographic/ContourLayer.cs" id="72_contour"]
-[ext_resource type="Resource" path="res://TopoDemo/assets/contours.res" id="73_baked"]
+[ext_resource type="Resource" uid="uid://d1cdv6wtntliy" path="res://TopoDemo/assets/contours.res" id="73_baked"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_sky"]
 sky_top_color = Color(0.28, 0.45, 0.75, 1)
@@ -84,7 +83,6 @@ shader_parameter/window_center = Vector2(0.5, 0.5)
 shader_parameter/window_span = Vector2(1, 1)
 
 [node name="Demo" type="Node3D" unique_id=2147396049]
-script = ExtResource("1_ujjjx")
 
 [node name="Sun" type="DirectionalLight3D" parent="." unique_id=284187964]
 transform = Transform3D(0.76604444, 0.52654076, -0.3686878, 0, 0.57357645, 0.81915206, 0.6427876, -0.62750685, 0.43938506, 0, 0, 0)
@@ -167,10 +165,10 @@ WorldMapRoot = NodePath("WorldMap")
 Player = NodePath("../../Player")
 MinimapContours = NodePath("Minimap/Contours")
 WorldMapContours = NodePath("WorldMap/WorldMapImage/Contours")
+BakedContours = ExtResource("73_baked")
 MinimapMarker = NodePath("Minimap/Marker")
 WorldMapMarker = NodePath("WorldMap/WorldMapImage/Marker")
 PlayerBody = NodePath("../../Player/Body")
-BakedContours = ExtResource("73_baked")
 
 [node name="Minimap" type="ColorRect" parent="Hud/MapUi" unique_id=1261521365]
 material = SubResource("ShaderMaterial_minimap")
