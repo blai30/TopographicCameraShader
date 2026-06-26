@@ -15,12 +15,14 @@ PRODUCER (on the orthographic map camera, RGBA16F 2048x2048 SubViewport)
   TopDownCamera (ortho, top-down)  -->  depth buffer
   TopographicCompositorEffect (compute, PreTransparent) runs, in one render callback:
     1. height pass:   depth -> R = normalized height, G = coverage mask
-    2. seed pass:     band edges (floor(h/interval) differs from a neighbor) -> sub-texel
-                      crossing positions as jump-flood seeds
-    3. jump flood:    ~11 ping-pong passes propagate the nearest seed
-    4. composite:     B = distance (UV units) to the nearest contour line
-  Result: one buffer, R = height, G = mask, B = contour distance. (A is unused; an
-  opaque viewport forces alpha to 1, so it cannot carry data.)
+    2. seed pass:     per-cell marching squares -> the contour SEGMENT (both endpoints)
+                      crossing each cell, as jump-flood seeds (segments, not points, so
+                      the SDF measures true distance to the line and lines do not dash)
+    3. jump flood:    ~11 ping-pong passes propagate the nearest segment (point-to-segment)
+    4. composite:     B = SIGNED distance (UV units) to the nearest contour line, signed
+                      by band parity (sign flips at every line, never mid-band)
+  Result: one buffer, R = height, G = mask, B = signed contour distance. (A is unused;
+  an opaque viewport forces alpha to 1, so it cannot carry data.)
 
 CONSUMER (per map: minimap, world map)
   TopographicView (a ColorRect with topographic_style.gdshader) samples that one buffer
@@ -29,6 +31,9 @@ CONSUMER (per map: minimap, world map)
     - constant-width anti-aliased contour lines (from B), thresholded by px_per_uv so the
       width is constant in screen pixels at any zoom. The line's level is round(h/interval)
       from the local height, so nothing is stored per line.
+  The hypsometric tint's band color step is placed and anti-aliased AT the SDF line (using
+  the signed distance), not at the faceted per-pixel height threshold, so band edges stay
+  as smooth as the lines at any zoom and always coincide with them.
 
 MARKER (overlay)
   A constant-size SDF arrow (marker_overlay.gdshader) drawn into a small UI Control on top
@@ -93,7 +98,12 @@ GPU SDF pipeline:
 - The opaque map viewport FORCES the color buffer alpha to 1.0 after the compositor writes it, so the `A` channel cannot carry a payload (an early version stored the level index in `A` and it came back as a constant 1). The line's level is instead recomputed in the shader as `round(h / interval)` from the local height, since a pixel on a line is at that line's elevation.
 - The SDF distance in `B` is in UV units (0..~1.4), not texels. To get a constant screen width, scale by `px_per_uv = view_size_px / window_span` (screen pixels per UV unit). Dividing by the buffer resolution instead under-scales by ~2048x and paints the whole map as line color.
 - Jump flood needs ping-pong textures and a memory barrier between every pass; the compositor runs all passes in one `ComputeList` with `ComputeListAddBarrier` between dispatches. Each compute pass needs its own uniform set (use `UniformSetCacheRD.GetCache` per shader).
-- The seed pass uses a discrete band comparison (`floor(h/interval)` differs from a neighbor), which is robust on flat ground precisely because there is no gradient division. Sub-texel crossing positions keep the lines smooth.
+- The seed pass uses a discrete band comparison (per-cell marching squares for the level crossing the cell), which is robust on flat ground precisely because there is no gradient division.
+- Seed SEGMENTS, not points. An earlier version seeded one crossing point per texel; the SDF then measured distance to the nearest point, and midpoints between points read as farther, so lines DASHED at high zoom. Seeding the contour segment per cell (per-cell marching squares) and using point-to-segment distance in the jump flood and composite gives true distance to the line.
+- Store a SIGNED distance, not unsigned. An unsigned distance has a V-shaped kink at the line, and a per-texel V cannot be bilinearly reconstructed (its minimum rounds to ~0.5 texel between texel centers), so the line oscillates and dashes when zoomed in with a tight anti-alias. A signed distance is linear THROUGH the line, so the bilinear-sampled zero crossing is sub-texel accurate; the line (`|B|`) reaches 0 exactly on the contour and stays crisp at any zoom.
+- Sign B by BAND PARITY (`floor(h/interval)` even/odd), NOT by side of the nearest level (`sign(h - round(h/interval)*interval)`). Side-of-level signing flips at the mid-band point too (where `round()` jumps), which puts a spurious zero crossing -- a phantom line -- between every pair of real lines. Parity is constant within a band and flips only at lines, so adjacent bands still get opposite signs (a clean zero at each real line) with no mid-band flip. The line reads `|B|`.
+- The line uses a tight 1px anti-alias (`clamp(width - |B|*px_per_uv + 0.5, 0, 1)`), not a wide soft falloff, so it is crisp rather than blurry.
+- Band-edge quality at high zoom: a hard `floor(h/interval)` band fill shows the buffer's texel facets when zoomed in. Placing and anti-aliasing the band color step at the SDF line instead makes band edges as smooth as the lines and coincident with them. The fill side (below/above the nearest line) is computed in the shader from the local height (`sign(h - round(h/interval)*interval)`); its level and blend jumps at mid-band cancel, so the fill color stays continuous there. This is safe (it is a fill-edge AA, not a constant-width line, so the flat-ground gradient instability does not apply).
 
 ## Performance and load behavior
 

@@ -28,19 +28,29 @@ void fragment() {
 	float h = mix(height_min, height_max, buf.r);
 	float span = max(0.0001, height_max - height_min);
 
-	// Stepped hypsometric tint.
-	float band_center = (floor(h / contour_interval) + 0.5) * contour_interval;
-	float tint_t = clamp((band_center - height_min) / span, 0.0, 1.0);
-	vec3 tint = texture(color_ramp, vec2(tint_t, 0.5)).rgb;
-
-	// Contour line from the signed-distance field (B = distance in UV units to the
-	// nearest line). The line's level is the nearest contour multiple to the local
-	// height: near a line, h equals that line's level, so we need not store it.
-	float screen_dist = buf.b * px_per_uv;
+	// B is the band-parity-signed SDF distance (UV units) to the nearest contour line:
+	// its magnitude is the distance, its sign flips at every line (and only at lines),
+	// so the signed field interpolates linearly through each line and its zero crossing
+	// is sub-texel accurate (lines stay crisp at high zoom). The line's level is the
+	// nearest contour multiple to the local height, so nothing is stored per line.
+	float dist_px = abs(buf.b) * px_per_uv;  // screen-px distance to the nearest line
 	float level_index = floor(h / contour_interval + 0.5);
+
+	// Anti-aliased hypsometric tint. A band boundary IS a contour line, so the color
+	// step is placed and anti-aliased at the line (~1px), not at the faceted per-pixel
+	// height threshold, so band edges stay as smooth as the lines and coincide with
+	// them. The side (below/above the nearest line) comes from the local height; the
+	// level/blend jumps at mid-band cancel, so the fill color stays continuous there.
+	float blend = smoothstep(-0.5, 0.5, dist_px * sign(h - level_index * contour_interval));
+	float t_below = clamp(((level_index - 0.5) * contour_interval - height_min) / span, 0.0, 1.0);
+	float t_above = clamp(((level_index + 0.5) * contour_interval - height_min) / span, 0.0, 1.0);
+	vec3 tint = mix(texture(color_ramp, vec2(t_below, 0.5)).rgb,
+		texture(color_ramp, vec2(t_above, 0.5)).rgb, blend);
+
+	// Crisp line: solid core with a 1px anti-aliased edge.
 	float is_major = step(0.5, 0.5 - abs(mod(level_index, major_every)));
 	float width = mix(minor_width_px, major_width_px, is_major);
-	float line_a = 1.0 - smoothstep(width - 1.0, width + 1.0, screen_dist);
+	float line_a = clamp(width - dist_px + 0.5, 0.0, 1.0);
 	float level_norm = clamp((level_index * contour_interval - height_min) / span, 0.0, 1.0);
 	vec3 line_col = texture(color_ramp, vec2(level_norm, 0.5)).rgb * contour_darken;
 

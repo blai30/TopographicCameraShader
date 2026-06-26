@@ -174,7 +174,7 @@ public partial class TopographicCompositorEffect : CompositorEffect
         byte[] heightPush = Floats(size.X, size.Y, CameraY, NearPlane, FarPlane, HeightMin, HeightMax,
             DepthReversed ? 1.0f : 0.0f);
         byte[] seedPush = Floats(size.X, size.Y, HeightMin, HeightMax, ContourInterval, 0f, 0f, 0f);
-        byte[] compositePush = Floats(size.X, size.Y, 0f, 0f);
+        byte[] compositePush = Floats(size.X, size.Y, HeightMin, HeightMax, ContourInterval, 0f, 0f, 0f);
 
         int startStep = 1;
         while (startStep * 2 < Math.Max(size.X, size.Y))
