@@ -1,16 +1,17 @@
 #[compute]
 #version 450
 
-// Seed pass for the contour signed-distance field. A texel is "on a contour" when a
-// contour level multiple falls between its world height and a right/down neighbor's.
-// For such a texel, store the sub-texel crossing position (in UV) and the level index
-// as a jump-flood seed. Robust on flat ground: it is a discrete band comparison, no
-// gradient division.
+// Seed pass for the contour signed-distance field. For each grid cell (this texel plus
+// its right/down/diagonal neighbors) it runs marching squares for the single contour
+// level crossing the cell and stores that contour SEGMENT (both endpoints, in UV) as a
+// jump-flood seed. Seeding segments (not points) lets the SDF measure true distance to
+// the line, so lines stay solid at high zoom instead of dashing between point seeds. It
+// is a discrete band comparison, so it is robust on flat ground (no gradient division).
 
 layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 
 layout(rgba16f, set = 0, binding = 0) uniform image2D color_image; // R=norm height, G=mask
-layout(rgba32f, set = 0, binding = 1) uniform image2D seed_out;    // xy=seedUV, z=level, w=valid
+layout(rgba32f, set = 0, binding = 1) uniform image2D seed_out;    // x0,y0,x1,y1 (UV); x0<0 invalid
 
 layout(push_constant, std430) uniform Params {
 	vec2 size;
@@ -26,36 +27,38 @@ void main() {
 	ivec2 px = ivec2(gl_GlobalInvocationID.xy);
 	if (px.x >= int(p.size.x) || px.y >= int(p.size.y)) { return; }
 
-	vec4 c = imageLoad(color_image, px);
-	if (c.g < 0.5) { imageStore(seed_out, px, vec4(0.0)); return; }
+	vec4 invalid = vec4(-1.0);
+	if (px.x + 1 >= int(p.size.x) || px.y + 1 >= int(p.size.y)) { imageStore(seed_out, px, invalid); return; }
 
-	float h = mix(p.height_min, p.height_max, c.r);
+	vec4 m00 = imageLoad(color_image, px);
+	vec4 m10 = imageLoad(color_image, px + ivec2(1, 0));
+	vec4 m01 = imageLoad(color_image, px + ivec2(0, 1));
+	vec4 m11 = imageLoad(color_image, px + ivec2(1, 1));
+	if (m00.g < 0.5 || m10.g < 0.5 || m01.g < 0.5 || m11.g < 0.5) { imageStore(seed_out, px, invalid); return; }
 
-	float best_t = 1e9;
-	vec2 best_uv = vec2(0.0);
-	float best_level = 0.0;
-	bool found = false;
+	float h00 = mix(p.height_min, p.height_max, m00.r);
+	float h10 = mix(p.height_min, p.height_max, m10.r);
+	float h01 = mix(p.height_min, p.height_max, m01.r);
+	float h11 = mix(p.height_min, p.height_max, m11.r);
 
-	for (int dir = 0; dir < 2; dir++) {
-		ivec2 npx = px + (dir == 0 ? ivec2(1, 0) : ivec2(0, 1));
-		if (npx.x >= int(p.size.x) || npx.y >= int(p.size.y)) { continue; }
-		vec4 nc = imageLoad(color_image, npx);
-		if (nc.g < 0.5) { continue; }
-		float hn = mix(p.height_min, p.height_max, nc.r);
-		if (hn == h) { continue; }
-		float lo = min(h, hn), hi = max(h, hn);
-		float lvl = ceil(lo / p.interval);  // first level multiple strictly above lo
-		float lv = lvl * p.interval;
-		if (lv <= lo || lv > hi) { continue; }
-		float t = (lv - h) / (hn - h); // 0..1 along the edge from this texel
-		if (t < best_t) {
-			best_t = t;
-			vec2 cross_px = vec2(px) + (dir == 0 ? vec2(t, 0.0) : vec2(0.0, t));
-			best_uv = (cross_px + 0.5) / p.size;
-			best_level = lvl;
-			found = true;
-		}
-	}
+	float cmin = min(min(h00, h10), min(h01, h11));
+	float cmax = max(max(h00, h10), max(h01, h11));
+	float lv = (floor(cmin / p.interval) + 1.0) * p.interval; // first level multiple above cmin
+	if (lv > cmax) { imageStore(seed_out, px, invalid); return; }
 
-	imageStore(seed_out, px, found ? vec4(best_uv, best_level, 1.0) : vec4(0.0));
+	// Marching-squares edge crossings, in cell-local coords (corner A=(0,0)=h00,
+	// B=(1,0)=h10, C=(0,1)=h01, D=(1,1)=h11).
+	vec2 pts[4];
+	int n = 0;
+	if ((h00 < lv) != (h10 < lv)) { pts[n++] = vec2((lv - h00) / (h10 - h00), 0.0); } // top A-B
+	if ((h01 < lv) != (h11 < lv)) { pts[n++] = vec2((lv - h01) / (h11 - h01), 1.0); } // bottom C-D
+	if ((h00 < lv) != (h01 < lv)) { pts[n++] = vec2(0.0, (lv - h00) / (h01 - h00)); } // left A-C
+	if ((h10 < lv) != (h11 < lv)) { pts[n++] = vec2(1.0, (lv - h10) / (h11 - h10)); } // right B-D
+	if (n < 2) { imageStore(seed_out, px, invalid); return; }
+
+	// Convert to UV using texel-center positions (corner A is the center of texel px).
+	vec2 base = vec2(px);
+	vec2 uv0 = (base + pts[0] + 0.5) / p.size;
+	vec2 uv1 = (base + pts[1] + 0.5) / p.size;
+	imageStore(seed_out, px, vec4(uv0, uv1));
 }
