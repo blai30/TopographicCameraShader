@@ -10,13 +10,18 @@ public partial class ContourLayer : Control
 {
     [Export] public float MinorWidthPx = 1.1f;
     [Export] public float MajorWidthPx = 1.9f;
-    [Export] public Color LineColor = new(0.12f, 0.09f, 0.06f);
 
-    // When true and a ColorRamp is set, each line takes the ramp color at its
-    // own elevation, darkened by ContourDarken. Otherwise LineColor is used.
-    [Export] public bool ContourDynamic = true;
+    /// <summary>
+    /// Solid override color for every contour line. Leave fully transparent
+    /// (alpha 0, the default) to color lines dynamically from ColorRamp by
+    /// elevation, falling back to black when no ramp is set. Any alpha above 0
+    /// overrides the ramp with this solid color.
+    /// WARNING: alpha doubles as the dynamic on/off switch, so dragging alpha
+    /// down to fade the lines will instead re-enable dynamic coloring.
+    /// </summary>
+    [Export] public Color ContourLineColor = new(0f, 0f, 0f, 0f);
     [Export] public GradientTexture1D ColorRamp;
-    [Export] public float ContourDarken = 0.6f;
+    [Export] public float ContourLightness = 0.7f;
 
     public ContourField Field;
 
@@ -70,10 +75,10 @@ public partial class ContourLayer : Control
                 points[i] = new(sx, sy);
             }
 
-            var color = LineColor;
-            if (ContourDynamic && ramp != null)
+            var color = ContourLineColor;
+            if (ContourLineColor.A <= 0f)
             {
-                color = ramp.Sample(polyline.Level) * ContourDarken;
+                color = ramp != null ? ramp.Sample(polyline.Level) * ContourLightness : Colors.Black;
                 color.A = 1f;
             }
 

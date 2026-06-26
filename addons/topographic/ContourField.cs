@@ -43,42 +43,21 @@ public sealed class ContourField
         Parallel.For(0, levelCount, li =>
         {
             var polylines = new List<ContourPolyline>();
+            perLevel[li] = polylines;
+
             int index = firstIndex + li;
             float worldHeight = index * interval;
-            if (worldHeight > heightMin && worldHeight < heightMax)
+            if (worldHeight <= heightMin || worldHeight >= heightMax)
             {
-                float level = (worldHeight - heightMin) / span;
-                bool isMajor = majorEvery > 0 && index % majorEvery == 0;
-
-                var segments = MarchingSquares.ExtractSegments(field, mask, cols, rows, level);
-                var chains = MarchingSquares.ChainSegments(segments);
-                foreach (var rawChain in chains)
-                {
-                    var chain = MarchingSquares.Simplify(rawChain, simplifyEpsilon);
-                    float minX = float.MaxValue, minY = float.MaxValue;
-                    float maxX = float.MinValue, maxY = float.MinValue;
-                    foreach (var point in chain)
-                    {
-                        minX = Math.Min(minX, point.X);
-                        minY = Math.Min(minY, point.Y);
-                        maxX = Math.Max(maxX, point.X);
-                        maxY = Math.Max(maxY, point.Y);
-                    }
-
-                    polylines.Add(new()
-                    {
-                        Points = chain,
-                        Level = level,
-                        IsMajor = isMajor,
-                        MinX = minX,
-                        MinY = minY,
-                        MaxX = maxX,
-                        MaxY = maxY
-                    });
-                }
+                return;
             }
 
-            perLevel[li] = polylines;
+            float level = (worldHeight - heightMin) / span;
+            bool isMajor = majorEvery > 0 && index % majorEvery == 0;
+
+            var segments = MarchingSquares.ExtractSegments(field, mask, cols, rows, level);
+            var chains = MarchingSquares.ChainSegments(segments);
+            AppendPolylines(polylines, chains, level, isMajor, simplifyEpsilon);
         });
 
         foreach (var polylines in perLevel)
@@ -87,5 +66,43 @@ public sealed class ContourField
         }
 
         return result;
+    }
+
+    // Simplifies each chain at one level and appends it as a polyline tagged with its
+    // level, major flag, and bounding box.
+    private static void AppendPolylines(List<ContourPolyline> polylines, List<List<ContourPoint>> chains,
+        float level, bool isMajor, float simplifyEpsilon)
+    {
+        foreach (var rawChain in chains)
+        {
+            var chain = MarchingSquares.Simplify(rawChain, simplifyEpsilon);
+            (float minX, float minY, float maxX, float maxY) = Bounds(chain);
+            polylines.Add(new()
+            {
+                Points = chain,
+                Level = level,
+                IsMajor = isMajor,
+                MinX = minX,
+                MinY = minY,
+                MaxX = maxX,
+                MaxY = maxY
+            });
+        }
+    }
+
+    // Axis-aligned bounding box of a polyline, used to cull off-window lines on draw.
+    private static (float MinX, float MinY, float MaxX, float MaxY) Bounds(List<ContourPoint> points)
+    {
+        float minX = float.MaxValue, minY = float.MaxValue;
+        float maxX = float.MinValue, maxY = float.MinValue;
+        foreach (var point in points)
+        {
+            minX = Math.Min(minX, point.X);
+            minY = Math.Min(minY, point.Y);
+            maxX = Math.Max(maxX, point.X);
+            maxY = Math.Max(maxY, point.Y);
+        }
+
+        return (minX, minY, maxX, maxY);
     }
 }
