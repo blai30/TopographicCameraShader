@@ -15,8 +15,8 @@ public partial class MapUi : Control
     [Export] public SubViewport MapViewport;
     [Export] public TopographicCompositorEffect MapCompositor;
     [Export] public ColorRect Minimap;
-    [Export] public ColorRect WorldMapImage;
-    [Export] public Control WorldMapRoot;
+    [Export] public ColorRect WorldMap;
+    [Export] public Control WorldMapOverlay;
     [Export] public Node3D Player;
     [Export] public float TerrainSize = 1536.0f;
     [Export] public float MinimapWorldSpan = 220.0f;
@@ -42,9 +42,9 @@ public partial class MapUi : Control
         var heightBuffer = MapViewport.GetTexture();
         var segments = MapCompositor?.SegmentTexture;
         BindTextures(Minimap, heightBuffer, segments);
-        BindTextures(WorldMapImage, heightBuffer, segments);
+        BindTextures(WorldMap, heightBuffer, segments);
 
-        WorldMapRoot.Visible = false;
+        WorldMapOverlay.Visible = false;
 
         // Keep the minimap hidden until the compositor has produced the segment texture
         // (see _Process). Drawing it before the producer's first render samples the segment
@@ -75,11 +75,11 @@ public partial class MapUi : Control
             if (MapCompositor is { HasProduced: false }) return;
 
             _minimapRevealed = true;
-            Minimap.Visible = !WorldMapRoot.Visible;
+            Minimap.Visible = !WorldMapOverlay.Visible;
         }
 
         UpdateMinimap();
-        if (!WorldMapRoot.Visible) return;
+        if (!WorldMapOverlay.Visible) return;
         LayoutWorldMap();
         UpdateWorldMap();
     }
@@ -92,7 +92,7 @@ public partial class MapUi : Control
             return;
         }
 
-        if (!WorldMapRoot.Visible) return;
+        if (!WorldMapOverlay.Visible) return;
 
         switch (inputEvent)
         {
@@ -108,22 +108,22 @@ public partial class MapUi : Control
             case InputEventMouseMotion motion when _dragging:
                 // Drag moves the world under the cursor: shift the window center
                 // opposite the drag, scaled by the current span over the map size.
-                _panUv -= motion.Relative / WorldMapImage.Size * WindowSpan();
+                _panUv -= motion.Relative / WorldMap.Size * WindowSpan();
                 ClampPan();
                 break;
             case InputEventKey { Pressed: true, Keycode: Key.Equal or Key.KpAdd }:
-                ZoomAt(WorldMapImage.Position + WorldMapImage.Size * 0.5f, ZoomStep);
+                ZoomAt(WorldMap.Position + WorldMap.Size * 0.5f, ZoomStep);
                 break;
             case InputEventKey { Pressed: true, Keycode: Key.Minus or Key.KpSubtract }:
-                ZoomAt(WorldMapImage.Position + WorldMapImage.Size * 0.5f, 1.0f / ZoomStep);
+                ZoomAt(WorldMap.Position + WorldMap.Size * 0.5f, 1.0f / ZoomStep);
                 break;
         }
     }
 
     private void ToggleWorldMap()
     {
-        bool show = !WorldMapRoot.Visible;
-        WorldMapRoot.Visible = show;
+        bool show = !WorldMapOverlay.Visible;
+        WorldMapOverlay.Visible = show;
         Minimap.Visible = !show;
         if (show)
         {
@@ -154,15 +154,15 @@ public partial class MapUi : Control
     // Keep the world map a centered square sized to the shorter screen dimension.
     private void LayoutWorldMap()
     {
-        float side = Mathf.Min(WorldMapRoot.Size.X, WorldMapRoot.Size.Y);
-        WorldMapImage.Size = new(side, side);
-        WorldMapImage.Position = (WorldMapRoot.Size - WorldMapImage.Size) * 0.5f;
+        float side = Mathf.Min(WorldMapOverlay.Size.X, WorldMapOverlay.Size.Y);
+        WorldMap.Size = new(side, side);
+        WorldMap.Position = (WorldMapOverlay.Size - WorldMap.Size) * 0.5f;
     }
 
     private void UpdateWorldMap()
     {
         float span = WindowSpan();
-        SetWindow(WorldMapImage, _panUv, span);
+        SetWindow(WorldMap, _panUv, span);
 
         // Place the marker at the player's position within the current window; hide
         // it when the player is outside the visible area.
@@ -170,7 +170,7 @@ public partial class MapUi : Control
         bool onMap = rel.X is >= 0.0f and <= 1.0f && rel.Y is >= 0.0f and <= 1.0f;
         WorldMapMarker.Visible = onMap;
         if (!onMap) return;
-        WorldMapMarker.Position = rel * WorldMapImage.Size - WorldMapMarker.Size * 0.5f;
+        WorldMapMarker.Position = rel * WorldMap.Size - WorldMapMarker.Size * 0.5f;
         WorldMapMarker.Rotation = MarkerRotation();
     }
 
@@ -212,7 +212,7 @@ public partial class MapUi : Control
     // Zoom while keeping the world point under screenPos fixed on screen.
     private void ZoomAt(Vector2 screenPos, float factor)
     {
-        var screenUv = (screenPos - WorldMapImage.Position) / WorldMapImage.Size - new Vector2(0.5f, 0.5f);
+        var screenUv = (screenPos - WorldMap.Position) / WorldMap.Size - new Vector2(0.5f, 0.5f);
         var uvUnderCursor = _panUv + screenUv * WindowSpan();
 
         _zoom = Mathf.Clamp(_zoom * factor, MinZoom, MaxZoom);
