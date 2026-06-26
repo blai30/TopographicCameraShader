@@ -43,7 +43,3 @@ Move with `W` `A` `S` `D`, look with the mouse, and press `M` (or `Tab`) to open
 - [Addon README](addons/topographic/README.md): install, quickstart, the full parameter reference, tuning recipes, game integration, and troubleshooting. Start here to use the addon in your own project.
 - [Demo walkthrough](docs/topographic-demo-walkthrough.md): a guided tour of the demo project and how to learn from it.
 - [Architecture notes](docs/topographic-map-architecture.md): how the system works internally and the design reasoning behind it.
-
-## License
-
-MIT. See [`addons/topographic/LICENSE`](addons/topographic/LICENSE).
