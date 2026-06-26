@@ -49,9 +49,10 @@ The look (palette, height range, contour interval, line widths) lives on each ma
    `NearPlane`, `FarPlane`, `DepthReversed`), and assign the compositor to the top-down
    camera.
 4. Add a `ColorRect` wherever you want a map and give it a `ShaderMaterial` running
-   `topographic_style.gdshader`. Set the look params on that material: `color_ramp`
-   (a `GradientTexture1D`), `height_min`/`height_max`, `contour_interval`, `major_every`,
-   the line widths (`minor_width_px`/`major_width_px`), and `contour_darken`. Keep
+   `topographic_style.gdshader`. Set the look params on that material (grouped in the
+   inspector as **Elevation** and **Contours**): `elevation_gradient` (a `GradientTexture1D`),
+   `height_min`/`height_max`, `contour_interval`, `lines_per_major`, the line widths
+   (`minor_line_width_px`/`major_line_width_px`), and `contour_line_darken`. Keep
    `height_min`/`height_max`/`contour_interval` in sync with the compositor.
 5. From code, bind `height_buffer` to the `SubViewport`'s `ViewportTexture` and `segments`
    to the compositor's `SegmentTexture`.
@@ -65,11 +66,11 @@ lines follow automatically the next time the buffer renders.
 
 ## Gradient presets
 
-The material's `color_ramp` parameter takes a `GradientTexture1D` that maps elevation
-(`height_min`..`height_max`) to color. Ready-made presets live in `gradients/`:
+The material's `elevation_gradient` parameter takes a `GradientTexture1D` that maps
+elevation (`height_min`..`height_max`) to color. Ready-made presets live in `gradients/`:
 `hypsometric_classic`, `hypsometric_deep`, `hypsometric_atlas`, `alpine`,
 `sepia_vintage`, `grayscale`, `viridis`, `blueprint`, `heatmap`, and `nautical`. Drop
-one into the `color_ramp` slot on the material, or duplicate and edit it. The same ramp
+one into the `elevation_gradient` slot on the material, or duplicate and edit it. The same ramp
 colors both the bands and the contour lines, so the map stays consistent.
 
 ## License
