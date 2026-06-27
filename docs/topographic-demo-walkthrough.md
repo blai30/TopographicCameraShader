@@ -69,7 +69,7 @@ The scene that connects everything. The producer side is `MapView` (a `use_hdr_2
 
 ### `assets/map_view_compositor_effect.tres`
 
-The `TopographicCompositorEffect` resource assigned to the map camera's compositor. Its `HeightMin`/`HeightMax`/`ContourInterval` and camera-rig exports are the producer half of the look; keep them matched with the two map materials.
+The `TopographicCompositorEffect` resource assigned to the map camera's compositor. Its `HeightMin`/`HeightMax`/`ContourInterval` and camera-rig exports are the producer half of the look; it is the single owner of the height range and interval, which `MapUi` pushes into the two map materials at load, so there is nothing to match by hand.
 
 ### `assets/terrain_material.tres` + `shaders/terrain.gdshader`, `assets/water_material.tres` + `shaders/water.gdshader`
 
@@ -108,7 +108,7 @@ The producer runs once because the terrain is static. If you made the terrain dy
 ## Experiments to try
 
 - **Change a palette.** Select `Hud/MapUi/Minimap`, open its material, and swap `elevation_gradient` for another preset from `addons/topographic/gradients/`. Do the same on `WorldMap` to see them differ independently.
-- **Make the contours denser.** Lower `contour_interval` on both map materials *and* on `assets/map_view_compositor_effect.tres` (all three must match). Watch the lines multiply.
+- **Make the contours denser.** Lower `ContourInterval` on `assets/map_view_compositor_effect.tres` (the single owner; `MapUi` pushes it into both map materials at load). Watch the lines multiply.
 - **Recolor the lines.** On a map material, try `line_color_from_gradient = 0` with a `line_color` of your choice for fixed-color lines, or push `line_gradient_lightness` positive on a dark gradient.
 - **Resize the minimap.** Change the `Minimap` `ColorRect`'s size; the lines stay the same screen-pixel width because `px_per_uv` is derived from the view size.
 - **Add a third map.** Duplicate the `Minimap` node, give it a new `ShaderMaterial`, add it to `MapUi`'s exports, and drive it with its own window. Two consumers already share one producer, so a third is free.

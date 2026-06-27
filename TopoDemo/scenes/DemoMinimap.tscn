@@ -55,9 +55,6 @@ compositor_effects = Array[CompositorEffect]([ExtResource("6_hqj3e")])
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_minimap"]
 shader = ExtResource("70_style")
 shader_parameter/elevation_gradient = ExtResource("8_47k30")
-shader_parameter/height_min = -40.0
-shader_parameter/height_max = 110.0
-shader_parameter/contour_interval = 10.0
 shader_parameter/lines_per_major = 5.0
 shader_parameter/minor_line_width_px = 0.5000000074506
 shader_parameter/major_line_width_px = 0.80000001192096
@@ -77,9 +74,6 @@ shader_parameter/outline_color = Color(1, 1, 1, 1)
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_worldmap"]
 shader = ExtResource("70_style")
 shader_parameter/elevation_gradient = ExtResource("10_1lqj8")
-shader_parameter/height_min = -40.0
-shader_parameter/height_max = 110.0
-shader_parameter/contour_interval = 10.0
 shader_parameter/lines_per_major = 5.0
 shader_parameter/minor_line_width_px = 0.60000000894072
 shader_parameter/major_line_width_px = 0.80000001192096

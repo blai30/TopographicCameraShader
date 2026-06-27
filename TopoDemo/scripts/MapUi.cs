@@ -42,6 +42,8 @@ public partial class MapUi : Control
         var segments = MapCompositor?.SegmentTexture;
         BindTextures(Minimap, heightBuffer, segments);
         BindTextures(WorldMap, heightBuffer, segments);
+        BindElevationModel(Minimap, MapCompositor);
+        BindElevationModel(WorldMap, MapCompositor);
 
         WorldMapOverlay.Visible = false;
 
@@ -195,6 +197,18 @@ public partial class MapUi : Control
         {
             mat.SetShaderParameter("segments", segments);
         }
+    }
+
+    // Push the elevation model (height range and contour interval) from the compositor into a
+    // map's shader. The compositor is the single owner; the consumer reads these so the tint
+    // bands and the seeded contour lines always agree. Static, so bound once.
+    private static void BindElevationModel(ColorRect view, TopographicCompositorEffect compositor)
+    {
+        if (compositor == null || view.Material is not ShaderMaterial mat) return;
+
+        mat.SetShaderParameter("height_min", compositor.HeightMin);
+        mat.SetShaderParameter("height_max", compositor.HeightMax);
+        mat.SetShaderParameter("contour_interval", compositor.ContourInterval);
     }
 
     // Set a map's sampling window. Center and span are in buffer-UV space. px_per_uv

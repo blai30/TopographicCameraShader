@@ -53,7 +53,7 @@ This is the minimum to get a working minimap. The [demo](#see-also) wires up the
 1. **Put the terrain on its own render layer.** Give the terrain `MeshInstance3D` a unique visual layer (for example layer 2) so the map camera can render only the terrain.
 2. **Add the map camera in a SubViewport.** Create a `SubViewport` with `use_hdr_2d = true` (required, see [Troubleshooting](#troubleshooting)), then an orthographic `Camera3D` inside it looking straight down (`projection = Orthographic`, rotated to point down `-Y`). Set the camera `cull_mask` to the terrain layer, its `size` to span the terrain, and `near`/`far` to bracket the terrain's height range. Give the camera an `Environment` override with `background_mode = Color` and a linear tonemap so the stored height is not distorted.
 3. **Attach the producer.** Create a `Compositor`, add a `TopographicCompositorEffect`, and assign the compositor to the camera. Set the compositor's `HeightMin`, `HeightMax`, `ContourInterval`, and the camera-rig params (`CameraY`, `NearPlane`, `FarPlane`, `DepthReversed`) to match your camera.
-4. **Add a map ColorRect.** Put a `ColorRect` in your HUD and give it a `ShaderMaterial` running `topographic.gdshader`. Set the look params (see [Parameter reference](#parameter-reference)); at minimum pick an `elevation_gradient` and set `height_min`/`height_max`/`contour_interval` to match the compositor.
+4. **Add a map ColorRect.** Put a `ColorRect` in your HUD and give it a `ShaderMaterial` running `topographic.gdshader`. Set the look params (see [Parameter reference](#parameter-reference)); at minimum pick an `elevation_gradient`. The height range and contour interval are owned by the compositor and pushed in at runtime (step 5), so you do not set them on the material.
 5. **Bind and drive it from a script.** Once, bind the two runtime textures; every frame, set the window. See [Using it in a game](#using-it-in-a-game) for the code.
 
 ## How it works
@@ -68,7 +68,7 @@ No bake, no `.res` to regenerate, no per-frame CPU cost. Change the terrain and 
 
 ## Parameter reference
 
-The **look** lives on each map's `ShaderMaterial` (the consumer). The **producer** has its own copy of the height range and interval on the compositor. The two must agree (see the sync note below).
+The **look** lives on each map's `ShaderMaterial` (the consumer). The **elevation model** (the height range and the contour interval) lives only on the compositor, which is its single owner; a driver script pushes it into each consumer at load, so there is nothing to keep in sync (see the [elevation model note](#elevation-model-note) below).
 
 ### Consumer: `topographic.gdshader` parameters
 
@@ -79,14 +79,13 @@ Grouped in the inspector exactly as below. Hover any parameter in the editor for
 | Parameter | Default | What it does |
 | --- | --- | --- |
 | `elevation_gradient` | (none) | A `GradientTexture1D` mapping elevation to color. Colors both the tint bands and the contour lines. Presets in `gradients/`. |
-| `height_min` | -40 | World height mapped to the bottom of the gradient. Match the compositor's `HeightMin`. |
-| `height_max` | 110 | World height mapped to the top of the gradient. Match the compositor's `HeightMax`. |
+
+The height range (`height_min`/`height_max`) that this gradient spans is owned by the compositor and pushed in at runtime; see the **Runtime** group below.
 
 **Contours**
 
 | Parameter | Default | Range | What it does |
 | --- | --- | --- | --- |
-| `contour_interval` | 10 | > 0 | World-height step between lines. Match the compositor's `ContourInterval`. |
 | `lines_per_major` | 5 | 1..20 | Every Nth line is drawn as a major (thicker) line. |
 | `minor_line_width_px` | 0.6 | 0..8 | Minor line width, in screen pixels (constant at any zoom). |
 | `major_line_width_px` | 0.8 | 0..8 | Major line width, in screen pixels. |
@@ -100,26 +99,27 @@ Grouped in the inspector exactly as below. Hover any parameter in the editor for
 | `line_gradient_lightness` | -0.05 | -1..1 | For the gradient-derived color: negative darkens toward black, positive lightens toward white. |
 | `line_gradient_shift` | -0.3 | -0.5..0.5 | For the gradient-derived color: offsets where the line samples the gradient, picking a neighboring elevation's hue. |
 
-**Runtime** (`height_buffer`, `segments`, `window_center`, `window_span`, `px_per_uv`)
+**Runtime** (`height_min`, `height_max`, `contour_interval`, `height_buffer`, `segments`, `window_center`, `window_span`, `px_per_uv`)
 
-These are set from code every frame (see [Using it in a game](#using-it-in-a-game)). Do not hand-edit them in the inspector; any value you set is overwritten at runtime.
+These are set from code, not authored on the material (see [Using it in a game](#using-it-in-a-game)). The elevation model (`height_min`, `height_max`, `contour_interval`) is pushed once from the compositor's matching exports so it always agrees with the producer; the textures and the window (`window_*`, `px_per_uv`) are bound by the driver script, the window every frame. Do not hand-edit any of them in the inspector; any value you set is overwritten at runtime.
 
 ### Producer: `TopographicCompositorEffect` exports
 
 | Export | What it does |
 | --- | --- |
-| `HeightMin`, `HeightMax` | The world-height range the height pass normalizes into `[0, 1]`. Match the material's `height_min`/`height_max`. |
-| `ContourInterval` | World-height step the seed pass uses to place contour segments. Match the material's `contour_interval`. |
+| `HeightMin`, `HeightMax` | The world-height range the height pass normalizes into `[0, 1]`. The single owner of the range; pushed to each consumer's `height_min`/`height_max` at runtime. |
+| `ContourInterval` | World-height step the seed pass uses to place contour segments. The single owner of the interval; pushed to each consumer's `contour_interval` at runtime. |
 | `CameraY` | The map camera's height (Y). Used to reconstruct world height from depth. |
 | `NearPlane`, `FarPlane` | The map camera's near/far planes. |
 | `DepthReversed` | Whether the depth buffer is reversed-Z (Godot's default is `true`). |
 | `ContourSmoothness` | Optional pre-seed blur of the height buffer, in buffer texels (`0..8`, default `4`; `0` = off). Smooths rough/high-frequency terrain into flowing contours without altering the terrain itself. Because the lines and the tint bands read the same buffer, both smooth together and stay aligned. Set to `0` for crisp, exact contours. |
 
-> **Sync note.** `height_min`/`height_max`/`contour_interval` exist in two places: the seed pass uses the compositor's copy to decide where lines fall, and the shader uses the material's copy for the tint and line styling. If they drift, the lines and the color bands stop coinciding. Keep all three values matched across the compositor and every map material.
+<a id="elevation-model-note"></a>
+> **Elevation model note.** `height_min`/`height_max`/`contour_interval` are owned solely by the compositor: the seed pass uses them to place the lines, and the consumer needs them for the tint and the line levels. The consumer does not author its own copy. A driver script reads them off the compositor and pushes them into each map material at load, so the lines and the color bands always coincide with nothing to keep in sync. See [Using it in a game](#using-it-in-a-game) for the binding code.
 
 ## Tuning recipes
 
-- **Denser or sparser contours:** lower or raise `contour_interval` (on the compositor *and* every material). Smaller interval = more lines.
+- **Denser or sparser contours:** lower or raise `ContourInterval` on the compositor (its single owner; the consumers pick it up at load). Smaller interval = more lines.
 - **Emphasize index contours:** raise `major_line_width_px` relative to `minor_line_width_px`, and set `lines_per_major` to taste (5 is a common cartographic choice).
 - **Thinner, sharper lines:** lower both width params toward `0.5`. Widths are in screen pixels and stay constant at any zoom.
 - **Classic look (dark lines on a light palette):** keep `line_color_from_gradient = 1` with a light gradient and `line_gradient_lightness` negative (darkens the band color into a line).
@@ -131,11 +131,16 @@ These are set from code every frame (see [Using it in a game](#using-it-in-a-gam
 
 ## Using it in a game
 
-The consumer shader needs three things from code: the two runtime textures (bound once) and the sampling window (set every frame). Everything else lives on the material.
+The consumer shader needs three things from code: the elevation model and the two runtime textures (bound once from the compositor), and the sampling window (set every frame). Everything else (the gradient and the line styling) lives on the material.
 
 ```csharp
-// Bind the runtime textures once (for example in _Ready):
+// Bind once (for example in _Ready). Push the elevation model from the compositor, its
+// single owner, so the tint and the seeded lines always agree:
 var material = (ShaderMaterial)mapRect.Material;
+material.SetShaderParameter("height_min", compositor.HeightMin);
+material.SetShaderParameter("height_max", compositor.HeightMax);
+material.SetShaderParameter("contour_interval", compositor.ContourInterval);
+// Bind the runtime textures:
 material.SetShaderParameter("height_buffer", mapViewport.GetTexture());
 material.SetShaderParameter("segments", compositor.SegmentTexture);
 
@@ -170,7 +175,7 @@ For a complete, working implementation of both a minimap and a pan/zoom world ma
 | Contours look terraced or stepped in flat areas | The SubViewport is 8-bit. Set `use_hdr_2d = true` on the map SubViewport so the height is stored at full precision. |
 | Colors or contour heights look wrong or washed out | The map camera is applying scene tonemapping to the stored height. Give the camera an `Environment` override with `background_mode = Color` and a linear (non-ACES) tonemap. |
 | "Uniforms were never supplied for set (1)" on the first frame | A map drew before the producer's first render. Keep always-visible maps hidden until `compositor.HasProduced` is true (see [Using it in a game](#using-it-in-a-game)). |
-| The color bands and the contour lines do not line up | `height_min`/`height_max`/`contour_interval` differ between the compositor and a material. Make all three match everywhere (see the sync note). |
+| The color bands and the contour lines do not line up | The consumer's `height_min`/`height_max`/`contour_interval` were not pushed from the compositor, or a stale value was hand-authored on the material. Bind them from the compositor at load (see [Using it in a game](#using-it-in-a-game)). |
 | Contour lines never appear / the map is a flat tint | The producer is not running. Confirm the renderer is Forward+, the compositor is on the map camera, the camera `cull_mask` includes the terrain layer, and the camera near/far/size actually frame the terrain. |
 | Lines are invisible on a dark palette | They are gradient-derived and darkening to near-black. Set `line_color_from_gradient = 0` with a `line_color`, or make `line_gradient_lightness` positive. |
 | The terrain changed but the map did not | The producer renders once (`render_target_update_mode = Once`). For dynamic terrain, raise the SubViewport's update mode so the passes re-run. |

@@ -52,9 +52,6 @@ width = 64
 [sub_resource type="ShaderMaterial" id="TopoMat"]
 shader = ExtResource("3_topo")
 shader_parameter/elevation_gradient = SubResource("GradientTexture1D_1aq06")
-shader_parameter/height_min = -40.0
-shader_parameter/height_max = 110.0
-shader_parameter/contour_interval = 10.0
 shader_parameter/lines_per_major = 5.0
 shader_parameter/minor_line_width_px = 1.0
 shader_parameter/major_line_width_px = 1.7

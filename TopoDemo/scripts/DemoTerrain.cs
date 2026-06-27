@@ -21,10 +21,6 @@ public partial class DemoTerrain : Node3D
     [Export] public Camera3D TopDownCamera;
     [Export] public ColorRect TopoRect;
 
-    private const float HeightMin = -40f;
-    private const float HeightMax = 110f;
-    private const float Interval = 10f; // must match the compositor effect's ContourInterval
-
     private const string GradientDir = "res://addons/topographic/gradients/";
     private const string OutDir = "res://screenshots/";
 
@@ -74,6 +70,12 @@ public partial class DemoTerrain : Node3D
         // only gets a live RID at run time, so bind it to the consumer material here.
         _effect = (TopographicCompositorEffect)TopDownCamera.Compositor.CompositorEffects[0];
         _material.SetShaderParameter("segments", _effect.SegmentTexture);
+
+        // The compositor owns the elevation model (height range and contour interval); push it
+        // into the consumer so the tint and the seeded lines agree. Static, so bound once.
+        _material.SetShaderParameter("height_min", _effect.HeightMin);
+        _material.SetShaderParameter("height_max", _effect.HeightMax);
+        _material.SetShaderParameter("contour_interval", _effect.ContourInterval);
 
         // Keep the consumer hidden until the producer's first render, or it samples the
         // segment texture before its RID is live and trips a "set (1)" draw error.
@@ -216,9 +218,6 @@ public partial class DemoTerrain : Node3D
     private void StyleTile(string gradient)
     {
         _material.SetShaderParameter("elevation_gradient", GD.Load<Texture2D>($"{GradientDir}{gradient}.tres"));
-        _material.SetShaderParameter("height_min", HeightMin);
-        _material.SetShaderParameter("height_max", HeightMax);
-        _material.SetShaderParameter("contour_interval", Interval);
         _material.SetShaderParameter("lines_per_major", 5.0f);
         _material.SetShaderParameter("minor_line_width_px", 0.7f);
         _material.SetShaderParameter("major_line_width_px", 1.1f);

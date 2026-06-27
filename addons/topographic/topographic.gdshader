@@ -7,31 +7,18 @@ shader_type canvas_item;
 // pixel, so lines stay crisp and constant-width at any zoom with no texel facets. Elevation
 // is the only concept: low ground (including underwater) takes the gradient's low colors.
 
-// Elevation tint: the gradient and the height range it spans.
+// Elevation tint: the gradient. The height range it spans is a runtime input owned by the
+// compositor (height_min/height_max, in the Runtime group).
 group_uniforms Elevation;
 /**
  * Gradient mapping elevation (height_min..height_max) to color. Colors both the
  * hypsometric bands and the contour lines. Presets live in addons/topographic/gradients/.
  */
 uniform sampler2D elevation_gradient : filter_linear, repeat_disable;
-/**
- * World height mapped to the bottom of the gradient. Keep in sync with the compositor's
- * [b]HeightMin[/b] so the tint bands and the contour lines line up.
- */
-uniform float height_min = -40.0;
-/**
- * World height mapped to the top of the gradient. Keep in sync with the compositor's
- * [b]HeightMax[/b].
- */
-uniform float height_max = 110.0;
 
 // Contour line styling. Widths are in screen pixels, kept constant at any zoom via px_per_uv.
+// The contour interval itself is a runtime input owned by the compositor (in the Runtime group).
 group_uniforms Contours;
-/**
- * World-height step between contour lines. Keep in sync with the compositor's
- * [b]ContourInterval[/b].
- */
-uniform float contour_interval = 10.0;
 /** Every Nth contour line is drawn as a major (thicker) line. */
 uniform float lines_per_major : hint_range(1.0, 20.0, 1.0) = 5.0;
 /** Width of the minor contour lines, in screen pixels. */
@@ -60,9 +47,26 @@ uniform float line_gradient_lightness : hint_range(-1.0, 1.0, 0.01) = -0.05;
  */
 uniform float line_gradient_shift : hint_range(-0.5, 0.5, 0.01) = -0.3;
 
-// Runtime inputs bound by MapUi each frame; do not hand-edit in the inspector.
+// Runtime inputs bound from code; do not hand-edit in the inspector. The elevation model
+// (height_min, height_max, contour_interval) is owned by the compositor and pushed in so the
+// tint and the seeded lines always agree; the textures and window are bound by the view driver.
 group_uniforms Runtime;
-/** [b]Bound by MapUi.[/b] Shared height buffer (R = normalized height, G = mask). Do not edit. */
+/**
+ * [b]Bound from the compositor's HeightMin.[/b] World height mapped to the bottom of the
+ * gradient. Owned by the producer so the tint bands and the contour lines line up. Do not edit.
+ */
+uniform float height_min = -40.0;
+/**
+ * [b]Bound from the compositor's HeightMax.[/b] World height mapped to the top of the
+ * gradient. Do not edit.
+ */
+uniform float height_max = 110.0;
+/**
+ * [b]Bound from the compositor's ContourInterval.[/b] World-height step between contour lines.
+ * Owned by the producer so the lines and the tint bands coincide. Do not edit.
+ */
+uniform float contour_interval = 10.0;
+/** [b]Bound by the view driver.[/b] Shared height buffer (R = normalized height, G = mask). Do not edit. */
 uniform sampler2D height_buffer : filter_linear, repeat_disable;
 /**
  * [b]Bound by MapUi.[/b] Compositor's per-cell contour segment texture
