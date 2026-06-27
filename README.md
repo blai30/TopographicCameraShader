@@ -1,4 +1,8 @@
-![Wide topographic map banner: dense contour lines over rich relief in a sepia ink-on-paper style](screenshots/banner.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="screenshots/banner-dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="screenshots/banner-light.png">
+  <img alt="Wide topographic map banner: dense contour lines flowing over relief" src="screenshots/banner-light.png">
+</picture>
 
 # Topographic Map (Godot 4.7, C#)
 

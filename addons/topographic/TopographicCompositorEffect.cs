@@ -26,7 +26,7 @@ public partial class TopographicCompositorEffect : CompositorEffect
     // behavior). Higher values give smoother, flowing contours on rough terrain. Smooths the
     // tint bands and the contour lines together since both read the same buffer.
     [Export(PropertyHint.Range, "0,8,1,prefer_slider")]
-    public int ContourSmoothness = 0;
+    public int ContourSmoothness = 4;
 
     // Persistent per-cell contour segment texture, wrapped as a Texture2D so the canvas
     // shader can sample it directly and compute exact (vector) line distance per display
