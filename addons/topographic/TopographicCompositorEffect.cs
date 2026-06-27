@@ -22,9 +22,9 @@ public partial class TopographicCompositorEffect : CompositorEffect
     [Export] public float FarPlane = 245.0f;
     [Export] public bool DepthReversed = true;
 
-    // Optional pre-seed blur of the height buffer, in buffer texels. 0 = off (no blur, current
-    // behavior). Higher values give smoother, flowing contours on rough terrain. Smooths the
-    // tint bands and the contour lines together since both read the same buffer.
+    // Optional pre-seed blur of the height buffer, in buffer texels. 0 = off (no blur); the
+    // default 4 smooths rough/high-frequency terrain, and higher values give smoother, flowing
+    // contours. Smooths the tint bands and the contour lines together since both read the same buffer.
     [Export(PropertyHint.Range, "0,8,1,prefer_slider")]
     public int ContourSmoothness = 4;
 

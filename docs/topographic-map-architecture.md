@@ -114,7 +114,7 @@ Analytic vector lines:
 
 Optional height smoothing:
 
-- `ContourSmoothness` (compositor export, `0..8` texels, default `0` = off) inserts an optional separable box blur of the height buffer's `R` channel between the height pass and the seed pass (`height_blur.glsl`, run horizontal then vertical through a scratch RGBA16F target back into the color image, with a barrier between each). It is for rough/high-frequency terrain where the raw contours come out jagged.
+- `ContourSmoothness` (compositor export, `0..8` texels, default `4`; `0` = off) inserts an optional separable box blur of the height buffer's `R` channel between the height pass and the seed pass (`height_blur.glsl`, run horizontal then vertical through a scratch RGBA16F target back into the color image, with a barrier between each). It is for rough/high-frequency terrain where the raw contours come out jagged.
 - It is done in the producer, on the shared height buffer, on purpose: both the contour lines (seed pass) and the tint bands (consumer sampling `R`) read this same buffer, so blurring it once smooths both together and keeps them aligned, with no change to `contour_seed.glsl` or `topographic.gdshader`. A consumer-side blur would be per-pixel expensive and could not smooth the already-seeded segment lines. The coverage mask `G` is carried through unblurred. When `0`, the blur passes are skipped entirely, so the pipeline is byte-for-byte the original.
 
 ## Performance and load behavior
