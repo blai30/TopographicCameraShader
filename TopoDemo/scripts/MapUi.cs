@@ -103,6 +103,8 @@ public partial class MapUi : Control
                 break;
             case InputEventMouseButton { ButtonIndex: MouseButton.Left } leftButton:
                 _dragging = leftButton.Pressed;
+                // Consume the click so PlayerController does not grab the mouse mid-drag.
+                GetViewport().SetInputAsHandled();
                 break;
             case InputEventMouseMotion motion when _dragging:
                 // Drag moves the world under the cursor: shift the window center

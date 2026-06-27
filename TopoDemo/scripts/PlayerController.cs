@@ -18,7 +18,10 @@ public partial class PlayerController : CharacterBody3D
 
     public override void _Ready()
     {
-        Input.MouseMode = Input.MouseModeEnum.Captured;
+        // Start with the cursor free. Mouselook is enabled when the player clicks into
+        // the window (see _UnhandledInput), so launching the game never confines the
+        // cursor and an abrupt window close cannot leave the OS cursor clip stuck.
+        Input.MouseMode = Input.MouseModeEnum.Visible;
 
         // Keep the third-person spring arm from colliding with the player's own body.
         if (CameraPivot is SpringArm3D springArm)
@@ -29,6 +32,16 @@ public partial class PlayerController : CharacterBody3D
 
     public override void _UnhandledInput(InputEvent inputEvent)
     {
+        // Clicking into the window grabs the mouse and starts mouselook. While the world
+        // map is open MapUi consumes its own left clicks, so this only fires during play.
+        if (inputEvent is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left }
+            && Input.MouseMode == Input.MouseModeEnum.Visible)
+        {
+            Input.MouseMode = Input.MouseModeEnum.Captured;
+            GetViewport().SetInputAsHandled();
+            return;
+        }
+
         if (inputEvent is InputEventMouseMotion motion && Input.MouseMode == Input.MouseModeEnum.Captured)
         {
             // Yaw turns the whole body (kept upright, rotation stays on Y); the camera pivot
@@ -38,11 +51,10 @@ public partial class PlayerController : CharacterBody3D
             CameraPivot.Rotation = new(_pitch, 0.0f, 0.0f);
         }
 
+        // Escape releases the mouse; click back into the window to grab it again.
         if (inputEvent.IsActionPressed("ui_cancel"))
         {
-            Input.MouseMode = Input.MouseMode == Input.MouseModeEnum.Captured
-                ? Input.MouseModeEnum.Visible
-                : Input.MouseModeEnum.Captured;
+            Input.MouseMode = Input.MouseModeEnum.Visible;
         }
     }
 
