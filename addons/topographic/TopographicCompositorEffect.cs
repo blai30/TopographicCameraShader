@@ -40,13 +40,13 @@ public partial class TopographicCompositorEffect : CompositorEffect
     private volatile bool _hasProduced;
     public bool HasProduced => _hasProduced;
 
-    private RenderingDevice _rd;
+    private RenderingDevice _renderingDevice;
     private Rid _heightShader, _heightPipeline;
     private Rid _seedShader, _seedPipeline;
     private Rid _blurShader, _blurPipeline;
     private Rid _depthSampler;
     private Rid _segments;
-    private Vector2I _segSize;
+    private Vector2I _segmentSize;
     private Rid _blurTemp;
     private Vector2I _blurTempSize;
     private bool _ready;
@@ -54,8 +54,8 @@ public partial class TopographicCompositorEffect : CompositorEffect
     public TopographicCompositorEffect()
     {
         EffectCallbackType = EffectCallbackTypeEnum.PreTransparent;
-        _rd = RenderingServer.GetRenderingDevice();
-        if (_rd == null) return;
+        _renderingDevice = RenderingServer.GetRenderingDevice();
+        if (_renderingDevice == null) return;
 
         bool ok = LoadShader("res://addons/topographic/depth_to_height.glsl", out _heightShader, out _heightPipeline) &&
                   LoadShader("res://addons/topographic/contour_seed.glsl", out _seedShader, out _seedPipeline) &&
@@ -69,7 +69,7 @@ public partial class TopographicCompositorEffect : CompositorEffect
             RepeatU = RenderingDevice.SamplerRepeatMode.ClampToEdge,
             RepeatV = RenderingDevice.SamplerRepeatMode.ClampToEdge
         };
-        _depthSampler = _rd.SamplerCreate(nearest);
+        _depthSampler = _renderingDevice.SamplerCreate(nearest);
 
         // Give SegmentTexture a valid RID up front. A consumer view binds this wrapper at
         // _Ready, before the first render populates the real segment texture; an empty RID
@@ -87,16 +87,16 @@ public partial class TopographicCompositorEffect : CompositorEffect
         var shaderFile = GD.Load<RDShaderFile>(path);
         if (shaderFile == null) return false;
 
-        shader = _rd.ShaderCreateFromSpirV(shaderFile.GetSpirV());
+        shader = _renderingDevice.ShaderCreateFromSpirV(shaderFile.GetSpirV());
         if (!shader.IsValid) return false;
 
-        pipeline = _rd.ComputePipelineCreate(shader);
+        pipeline = _renderingDevice.ComputePipelineCreate(shader);
         return pipeline.IsValid;
     }
 
     public override void _Notification(int what)
     {
-        if (what != NotificationPredelete || _rd == null) return;
+        if (what != NotificationPredelete || _renderingDevice == null) return;
         SegmentTexture.TextureRdRid = new();
         FreeRid(_depthSampler);
         FreeRid(_segments);
@@ -111,12 +111,12 @@ public partial class TopographicCompositorEffect : CompositorEffect
 
     private void FreeRid(Rid rid)
     {
-        if (rid.IsValid) _rd.FreeRid(rid);
+        if (rid.IsValid) _renderingDevice.FreeRid(rid);
     }
 
     private void EnsureSegmentTexture(Vector2I size)
     {
-        if (_segments.IsValid && _segSize == size) return;
+        if (_segments.IsValid && _segmentSize == size) return;
         CreateSegmentTexture(size);
     }
 
@@ -124,7 +124,7 @@ public partial class TopographicCompositorEffect : CompositorEffect
     {
         // StorageBit so the seed compute pass can write it, SamplingBit so the canvas shader
         // can sample it. Wrap it in the exposed Texture2Drd for consumers to bind.
-        var fmt = new RDTextureFormat
+        var format = new RDTextureFormat
         {
             Format = RenderingDevice.DataFormat.R32G32B32A32Sfloat,
             Width = (uint)size.X,
@@ -141,10 +141,10 @@ public partial class TopographicCompositorEffect : CompositorEffect
         // The wrapper still references the old RID, so freeing it first would leave the
         // setter operating on a freed RID ("Attempted to free invalid ID" / double free).
         var previous = _segments;
-        _segments = _rd.TextureCreate(fmt, new(), []);
+        _segments = _renderingDevice.TextureCreate(format, new(), []);
         SegmentTexture.TextureRdRid = _segments;
         FreeRid(previous);
-        _segSize = size;
+        _segmentSize = size;
     }
 
     private void EnsureBlurTemp(Vector2I size)
@@ -153,7 +153,7 @@ public partial class TopographicCompositorEffect : CompositorEffect
 
         // Scratch RGBA16F target for the horizontal blur pass, matching the color image's
         // format. StorageBit only: the compute passes read and write it, nothing samples it.
-        var fmt = new RDTextureFormat
+        var format = new RDTextureFormat
         {
             Format = RenderingDevice.DataFormat.R16G16B16A16Sfloat,
             Width = (uint)size.X,
@@ -167,16 +167,16 @@ public partial class TopographicCompositorEffect : CompositorEffect
 
         // Same set-before-free ordering as CreateSegmentTexture, to avoid a double free.
         var previous = _blurTemp;
-        _blurTemp = _rd.TextureCreate(fmt, new(), []);
+        _blurTemp = _renderingDevice.TextureCreate(format, new(), []);
         FreeRid(previous);
         _blurTempSize = size;
     }
 
     private static RDUniform ImageUniform(int binding, Rid image)
     {
-        var u = new RDUniform { UniformType = RenderingDevice.UniformType.Image, Binding = binding };
-        u.AddId(image);
-        return u;
+        var uniform = new RDUniform { UniformType = RenderingDevice.UniformType.Image, Binding = binding };
+        uniform.AddId(image);
+        return uniform;
     }
 
     private static byte[] Floats(params float[] values)
@@ -236,14 +236,14 @@ public partial class TopographicCompositorEffect : CompositorEffect
             var seedSet = UniformSetCacheRD.GetCache(_seedShader, 0,
                 [ImageUniform(0, colorImage), ImageUniform(1, _segments)]);
 
-            long list = _rd.ComputeListBegin();
+            long list = _renderingDevice.ComputeListBegin();
 
             // Height + mask into the color image.
-            _rd.ComputeListBindComputePipeline(list, _heightPipeline);
-            _rd.ComputeListBindUniformSet(list, heightSet, 0);
-            _rd.ComputeListSetPushConstant(list, heightPush, (uint)heightPush.Length);
-            _rd.ComputeListDispatch(list, xGroups, yGroups, 1);
-            _rd.ComputeListAddBarrier(list);
+            _renderingDevice.ComputeListBindComputePipeline(list, _heightPipeline);
+            _renderingDevice.ComputeListBindUniformSet(list, heightSet, 0);
+            _renderingDevice.ComputeListSetPushConstant(list, heightPush, (uint)heightPush.Length);
+            _renderingDevice.ComputeListDispatch(list, xGroups, yGroups, 1);
+            _renderingDevice.ComputeListAddBarrier(list);
 
             // Optional separable box blur of the height buffer, in place: horizontal into the
             // temp target, then vertical back into the color image. Both the seed pass below
@@ -256,26 +256,26 @@ public partial class TopographicCompositorEffect : CompositorEffect
                 var blurV = UniformSetCacheRD.GetCache(_blurShader, 0,
                     [ImageUniform(0, _blurTemp), ImageUniform(1, colorImage)]);
 
-                _rd.ComputeListBindComputePipeline(list, _blurPipeline);
-                _rd.ComputeListBindUniformSet(list, blurH, 0);
-                _rd.ComputeListSetPushConstant(list, blurPushH, (uint)blurPushH.Length);
-                _rd.ComputeListDispatch(list, xGroups, yGroups, 1);
-                _rd.ComputeListAddBarrier(list);
+                _renderingDevice.ComputeListBindComputePipeline(list, _blurPipeline);
+                _renderingDevice.ComputeListBindUniformSet(list, blurH, 0);
+                _renderingDevice.ComputeListSetPushConstant(list, blurPushH, (uint)blurPushH.Length);
+                _renderingDevice.ComputeListDispatch(list, xGroups, yGroups, 1);
+                _renderingDevice.ComputeListAddBarrier(list);
 
-                _rd.ComputeListBindComputePipeline(list, _blurPipeline);
-                _rd.ComputeListBindUniformSet(list, blurV, 0);
-                _rd.ComputeListSetPushConstant(list, blurPushV, (uint)blurPushV.Length);
-                _rd.ComputeListDispatch(list, xGroups, yGroups, 1);
-                _rd.ComputeListAddBarrier(list);
+                _renderingDevice.ComputeListBindComputePipeline(list, _blurPipeline);
+                _renderingDevice.ComputeListBindUniformSet(list, blurV, 0);
+                _renderingDevice.ComputeListSetPushConstant(list, blurPushV, (uint)blurPushV.Length);
+                _renderingDevice.ComputeListDispatch(list, xGroups, yGroups, 1);
+                _renderingDevice.ComputeListAddBarrier(list);
             }
 
             // Seed pass: per-cell contour segment into the persistent segment texture.
-            _rd.ComputeListBindComputePipeline(list, _seedPipeline);
-            _rd.ComputeListBindUniformSet(list, seedSet, 0);
-            _rd.ComputeListSetPushConstant(list, seedPush, (uint)seedPush.Length);
-            _rd.ComputeListDispatch(list, xGroups, yGroups, 1);
+            _renderingDevice.ComputeListBindComputePipeline(list, _seedPipeline);
+            _renderingDevice.ComputeListBindUniformSet(list, seedSet, 0);
+            _renderingDevice.ComputeListSetPushConstant(list, seedPush, (uint)seedPush.Length);
+            _renderingDevice.ComputeListDispatch(list, xGroups, yGroups, 1);
 
-            _rd.ComputeListEnd();
+            _renderingDevice.ComputeListEnd();
         }
 
         _hasProduced = true;
