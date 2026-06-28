@@ -7,8 +7,8 @@ shader_type canvas_item;
 // pixel, so lines stay crisp and constant-width at any zoom with no texel facets. Elevation
 // is the only concept: low ground (including underwater) takes the gradient's low colors.
 
-// Elevation tint: the gradient. The height range it spans is a runtime input owned by the
-// compositor (height_min/height_max, in the Runtime group).
+// Elevation tint: the gradient. The height range it spans (height_min/height_max) is baked
+// into the segment texture's metadata texel by the compositor and read back in-shader.
 group_uniforms Elevation;
 /**
  * Gradient mapping elevation (height_min..height_max) to color. Colors both the
@@ -16,8 +16,9 @@ group_uniforms Elevation;
  */
 uniform sampler2D elevation_gradient : filter_linear, repeat_disable;
 
-// Contour line styling. Widths are in screen pixels, kept constant at any zoom via px_per_uv.
-// The contour interval itself is a runtime input owned by the compositor (in the Runtime group).
+// Contour line styling. Widths are in screen pixels, kept constant at any zoom via the
+// in-shader px_per_uv derivation. The contour interval is baked into the segment texture's
+// metadata texel by the compositor and read back in-shader.
 group_uniforms Contours;
 /** Every Nth contour line is drawn as a major (thicker) line. */
 uniform float lines_per_major : hint_range(1.0, 20.0, 1.0) = 5.0;

@@ -37,8 +37,8 @@ public partial class MapUi : Control
 
     public override void _Ready()
     {
-        // The TopographicMapView nodes (Minimap, WorldMap) bind their own runtime inputs and
-        // elevation model. This driver owns only the view window, markers, and reveal gating.
+        // The map ColorRects (Minimap, WorldMap) bind their textures and elevation model in
+        // the inspector. This driver owns only the view window, markers, and reveal gating.
         WorldMapOverlay.Visible = false;
 
         // Keep the minimap hidden until the compositor has produced the segment texture
