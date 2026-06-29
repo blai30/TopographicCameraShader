@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://c7p4w8kvi3pld"]
 
 [ext_resource type="Shader" uid="uid://df2f8x2eh3r6b" path="res://TopoDemo/shaders/terrain.gdshader" id="1_terrain"]
-[ext_resource type="Texture2D" uid="uid://jp35jp7jyiq" path="res://TopoDemo/assets/banner_heightmap.exr" id="2_heightmap"]
+[ext_resource type="Texture2D" uid="uid://bbe3alyd3m5x6" path="res://TopoDemo/assets/torture_heightmap.exr" id="2_heightmap"]
 [ext_resource type="Shader" uid="uid://do6bmelduhhnx" path="res://addons/topographic/topographic.gdshader" id="3_topo"]
 [ext_resource type="Script" uid="uid://b1x1hdo5vbqss" path="res://addons/topographic/TopographicCompositorEffect.cs" id="4_1aq06"]
 [ext_resource type="Script" uid="uid://bdtb0iw8an1bu" path="res://TopoDemo/scripts/DemoTerrain.cs" id="5_script"]
@@ -71,10 +71,11 @@ shader_parameter/segments = ExtResource("9_segtex")
 shader_parameter/window_center = Vector2(0.5, 0.5)
 shader_parameter/window_span = Vector2(0.7, 0.7)
 
-[node name="DemoTerrain" type="Node3D" unique_id=2048007341 node_paths=PackedStringArray("TopDownCamera", "TopoRect")]
+[node name="DemoTerrain" type="Node3D" unique_id=2048007341 node_paths=PackedStringArray("TopDownCamera", "TopoRect", "Terrain")]
 script = ExtResource("5_script")
 TopDownCamera = NodePath("TerrainView/TopDownCamera")
 TopoRect = NodePath("Display/TopoRect")
+Terrain = NodePath("Terrain")
 
 [node name="Terrain" type="MeshInstance3D" parent="." unique_id=1618800042]
 layers = 2

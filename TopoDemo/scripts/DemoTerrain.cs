@@ -19,6 +19,7 @@ public partial class DemoTerrain : Node3D
 {
     [Export] public Camera3D TopDownCamera;
     [Export] public ColorRect TopoRect;
+    [Export] public MeshInstance3D Terrain;
 
     private const string GradientDir = "res://addons/topographic/gradients/";
     private const string OutDir = "res://screenshots/";
@@ -78,6 +79,7 @@ public partial class DemoTerrain : Node3D
 
         if (mode == "banner")
         {
+            UseBannerTerrain();
             DisplayServer.WindowSetSize(new(
                 (int)(BannerWidth * BannerSupersample), (int)(BannerHeight * BannerSupersample)));
             _queue.Add(new() { Path = $"{OutDir}banner-light.png", Banner = true });
@@ -87,6 +89,7 @@ public partial class DemoTerrain : Node3D
         {
             // The preset showcase shares the scene's compositor effect, so its contours carry the
             // same smoothness as the banner terrain.
+            UseBannerTerrain();
             DisplayServer.WindowSetSize(new(1024, 1024));
             foreach (string preset in Presets)
             {
@@ -178,6 +181,15 @@ public partial class DemoTerrain : Node3D
             StyleTile(shot.Gradient);
             SetWindow(0.5f, false);
         }
+    }
+
+    // The scene defaults the terrain heightmap to the torture terrain for testing; the README
+    // glamour modes render the smooth banner terrain instead.
+    private void UseBannerTerrain()
+    {
+        var terrainMaterial = (ShaderMaterial)Terrain.MaterialOverride;
+        terrainMaterial.SetShaderParameter(
+            "heightmap", GD.Load<Texture2D>("res://TopoDemo/assets/banner_heightmap.exr"));
     }
 
     // Window over the terrain. The view is a centered square (or the banner's 2.5:1 strip),
