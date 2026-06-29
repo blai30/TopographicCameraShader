@@ -7,6 +7,7 @@ namespace TopographicMap.TopoDemo;
 // Bakes every committed terrain asset, then quits:
 //   heightmap.exr + terrain_collision.res - the demo continent (used by the game)
 //   banner_heightmap.exr                  - rich terrain for DemoTerrain.tscn / the README shots
+//   torture_heightmap.exr                 - schematic stress terrain for DemoTerrain.tscn view mode
 // Never referenced by the game scene or any autoload, so the shipped game contains no
 // generator; only the baked outputs load at runtime.
 public partial class TerrainBaker : MainLoop
@@ -18,11 +19,13 @@ public partial class TerrainBaker : MainLoop
 
     private const int DemoRes = 512; // demo heightmap texels
     private const int BannerRes = 1024; // banner heightmap texels (finer relief)
+    private const int TortureRes = 1024; // torture heightmap texels (matches the mesh for sharp cliffs)
     private const int CollisionGrid = 513; // verts; cell = WorldSize / (CollisionGrid - 1) = 3 units
 
     private const string HeightmapPath = "res://TopoDemo/assets/heightmap.exr";
     private const string CollisionPath = "res://TopoDemo/assets/terrain_collision.res";
     private const string BannerPath = "res://TopoDemo/assets/banner_heightmap.exr";
+    private const string TorturePath = "res://TopoDemo/assets/torture_heightmap.exr";
 
     public override void _Initialize()
     {
@@ -32,6 +35,9 @@ public partial class TerrainBaker : MainLoop
 
         BuildBannerNoise();
         BakeHeightmap(BannerPath, BannerRes, BannerHeight);
+
+        BuildTortureNoise();
+        BakeHeightmap(TorturePath, TortureRes, TortureHeight);
     }
 
     // Quit after the first frame; all work is done in _Initialize.
@@ -163,5 +169,115 @@ public partial class TerrainBaker : MainLoop
     {
         float dx = ax - bx, dz = az - bz;
         return Mathf.Sqrt(dx * dx + dz * dz);
+    }
+
+    // ---- Torture terrain (used only by DemoTerrain.tscn view mode): a schematic test pattern of
+    // disjoint analytic zones (mesa, staircase, cone+ridge, basin, col/saddle, smooth patch) on a
+    // flat base, with hard vertical relief the smooth terrains never produce. The validation rig for
+    // the Phase 1 robustness items. See docs/topographic-map-architecture.md for the zone map.
+    private FastNoiseLite _tortureRings, _tortureApron;
+
+    private void BuildTortureNoise()
+    {
+        _tortureRings = new()
+        {
+            Seed = 2026, NoiseType = FastNoiseLite.NoiseTypeEnum.SimplexSmooth,
+            FractalType = FastNoiseLite.FractalTypeEnum.None, Frequency = 0.012f
+        };
+        _tortureApron = new()
+        {
+            Seed = 4242, NoiseType = FastNoiseLite.NoiseTypeEnum.SimplexSmooth,
+            FractalType = FastNoiseLite.FractalTypeEnum.None, Frequency = 0.02f
+        };
+    }
+
+    // Schematic torture field. A flat base at +5 (between the 0 and 10 contours so the apron stays
+    // clean), plus six spatially disjoint zones laid out on a 3-by-2 grid. Only one zone is nonzero
+    // at any point, so the per-zone deltas simply sum onto the base.
+    private float TortureHeight(float wx, float wz)
+    {
+        const float baseLevel = 5f;
+        float height = baseLevel;
+
+        // Zone centers (col 0..2 by x, row 0..1 by z). Cells are 512 wide by 768 tall.
+        // (0,0) Mesa: flat top with vertical cliff walls. Top +85 (between contours), foot = base.
+        {
+            float lx = wx - (-512f), lz = wz - (-384f);
+            float fill = BoxFill(lx, lz, 150f, 150f, 50f, 4f);
+            height += (85f - baseLevel) * fill;
+        }
+
+        // (1,0) Staircase: five flat treads with vertical risers climbing along +z. Treads sit between
+        // contours; the hard index jumps between treads are the risers.
+        {
+            float lx = wx - 0f, lz = wz - (-384f);
+            float mask = BoxFill(lx, lz, 170f, 300f, 30f, 4f);
+            float t = Mathf.Clamp((lz + 300f) / 600f, 0f, 1f);
+            int step = Mathf.Clamp((int)(t * 5f), 0, 4);
+            float[] treads = { 5f, 25f, 45f, 65f, 85f };
+            height += (treads[step] - baseLevel) * mask;
+        }
+
+        // (2,0) Cone + ridge: a steep peak (+105) with the +x lobe stretched into a ridge spur, so the
+        // concentric contours elongate into a crest on one side.
+        {
+            float lx = wx - 512f, lz = wz - (-384f);
+            float ax = lx > 0f ? lx * 0.45f : lx; // stretch the +x lobe into a ridge
+            float radial = Mathf.Sqrt(ax * ax + lz * lz);
+            float cone = Mathf.Max(0f, 1f - radial / 180f);
+            height += (105f - baseLevel) * cone;
+        }
+
+        // (0,1) Basin: flat floor at -25 (between contours) with steep walls rising to the base.
+        {
+            float radial = Distance(wx, wz, -512f, 384f);
+            float wall = Mathf.SmoothStep(142f, 130f, radial); // 1 on the floor, 0 past the wall
+            height += (-25f - baseLevel) * wall;
+        }
+
+        // (1,1) Col / saddle: two Gaussian peaks (+80) combined with max, leaving a saddle pass tuned to
+        // sit exactly on the +40 contour, which then forms the saddle X-crossing.
+        {
+            float lx = wx - 0f, lz = wz - 384f;
+            const float amp = 75f, sigma = 73f, denom = 2f * sigma * sigma;
+            float dxA = lx - 90f, dxB = lx + 90f;
+            float peakA = amp * Mathf.Exp(-(dxA * dxA + lz * lz) / denom);
+            float peakB = amp * Mathf.Exp(-(dxB * dxB + lz * lz) / denom);
+            height += Mathf.Max(peakA, peakB);
+        }
+
+        // (2,1) Smooth patch: gentle single-octave simplex mapped into +10..+50, with a soft (wide) edge
+        // so it blends into the base. Many closely spaced smooth rings for the moire case.
+        {
+            float lx = wx - 512f, lz = wz - 384f;
+            float sdf = RoundedBoxSdf(lx, lz, 200f, 320f, 40f);
+            float window = Mathf.SmoothStep(30f, -30f, sdf);
+            float rings = _tortureRings.GetNoise2D(wx, wz) * 0.5f + 0.5f; // 0..1
+            height += window * (5f + 40f * rings);
+        }
+
+        // Low-amplitude apron relief everywhere so flat regions are not a single dead band. Amplitude is
+        // small enough to keep flat tops and floors from crossing their neighboring contours.
+        height += 1.0f * _tortureApron.GetNoise2D(wx, wz);
+
+        return Mathf.Clamp(height, MinHeight, MaxHeight);
+    }
+
+    // Signed distance to an axis-aligned rounded box centered at the origin. Negative inside.
+    private static float RoundedBoxSdf(float px, float pz, float halfX, float halfZ, float radius)
+    {
+        float qx = Mathf.Abs(px) - halfX + radius;
+        float qz = Mathf.Abs(pz) - halfZ + radius;
+        float outside = Mathf.Sqrt(Mathf.Max(qx, 0f) * Mathf.Max(qx, 0f) + Mathf.Max(qz, 0f) * Mathf.Max(qz, 0f));
+        float inside = Mathf.Min(Mathf.Max(qx, qz), 0f);
+        return outside + inside - radius;
+    }
+
+    // 1 well inside a rounded box, 0 well outside, with a near-vertical transition band of half-width
+    // `cliff` world units across the edge (a few buffer texels at 1024 res).
+    private static float BoxFill(float px, float pz, float halfX, float halfZ, float radius, float cliff)
+    {
+        float sdf = RoundedBoxSdf(px, pz, halfX, halfZ, radius);
+        return Mathf.SmoothStep(cliff, -cliff, sdf);
     }
 }
