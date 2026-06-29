@@ -202,7 +202,7 @@ public partial class TerrainBaker : MainLoop
         // Zone centers (col 0..2 by x, row 0..1 by z). Cells are 512 wide by 768 tall.
         // (0,0) Mesa: flat top with vertical cliff walls. Top +85 (between contours), foot = base.
         {
-            float lx = wx - (-512f), lz = wz - (-384f);
+            float lx = wx - -512f, lz = wz - -384f;
             float fill = BoxFill(lx, lz, 150f, 150f, 50f, 4f);
             height += (85f - baseLevel) * fill;
         }
@@ -210,7 +210,7 @@ public partial class TerrainBaker : MainLoop
         // (1,0) Staircase: five flat treads with vertical risers climbing along +z. Treads sit between
         // contours; the hard index jumps between treads are the risers.
         {
-            float lx = wx - 0f, lz = wz - (-384f);
+            float lx = wx - 0f, lz = wz - -384f;
             float mask = BoxFill(lx, lz, 170f, 300f, 30f, 4f);
             float t = Mathf.Clamp((lz + 300f) / 600f, 0f, 1f);
             int step = Mathf.Clamp((int)(t * 5f), 0, 4);
@@ -221,7 +221,7 @@ public partial class TerrainBaker : MainLoop
         // (2,0) Cone + ridge: a steep peak (+105) with the +x lobe stretched into a ridge spur, so the
         // concentric contours elongate into a crest on one side.
         {
-            float lx = wx - 512f, lz = wz - (-384f);
+            float lx = wx - 512f, lz = wz - -384f;
             float ax = lx > 0f ? lx * 0.45f : lx; // stretch the +x lobe into a ridge
             float radial = Mathf.Sqrt(ax * ax + lz * lz);
             float cone = Mathf.Max(0f, 1f - radial / 180f);

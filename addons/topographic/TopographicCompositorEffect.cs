@@ -156,23 +156,40 @@ public partial class TopographicCompositorEffect : CompositorEffect
 
     public override void _Notification(int what)
     {
-        if (what != NotificationPredelete || _renderingDevice == null) return;
+        if (what == NotificationPredelete) ReleaseGpuResources();
+    }
+
+    // Tear down every RD resource this effect owns and empty the published Texture2Drd wrappers.
+    // Idempotent: a second call is a no-op, so the predelete path above and an early caller (a
+    // driving node freeing on app quit) never double-free.
+    //
+    // At full application shutdown the predelete of this effect fires too late: Godot has already
+    // begun tearing down the canvas materials and the RenderingDevice that still reference these
+    // RD textures through their Texture2Drd wrappers, and that teardown order faults natively
+    // (0xC0000005, no Godot backtrace; Texture2Drd/material dependency teardown, akin to #118292).
+    // A driving node calls this from its _ExitTree, while the render thread and RD are still alive,
+    // to break the material -> Texture2Drd -> RD-texture chain before Godot unwinds it.
+    public void ReleaseGpuResources()
+    {
+        if (_renderingDevice == null || !_ready) return;
+        _ready = false; // stop _RenderCallback from touching resources mid-teardown
 
         // Clear the wrappers' RIDs before the underlying RD textures are freed, or the setter would
         // operate on a freed RID.
         if (_segmentTexture != null) _segmentTexture.TextureRdRid = new();
         if (_heightTexture != null) _heightTexture.TextureRdRid = new();
 
-        // RenderingDevice.FreeRid must run on the render thread, but predelete runs on the main
-        // thread; freeing directly here errors on mid-session teardown (editor scene switch or C#
-        // recompile). Defer to the render thread, capturing locals so the callback never touches
-        // this dying object.
+        // RenderingDevice.FreeRid must run on the render thread, but this can be called from the
+        // main thread (predelete, or a node's _ExitTree); freeing directly there errors. Defer to
+        // the render thread, capturing locals so the callback never touches this object.
         var renderingDevice = _renderingDevice;
         Rid[] rids =
         [
             _depthSampler, _segments, _heightImage, _blurTemp, _heightPipeline, _heightShader,
             _seedPipeline, _seedShader, _blurPipeline, _blurShader
         ];
+        _depthSampler = _segments = _heightImage = _blurTemp = new();
+        _heightPipeline = _heightShader = _seedPipeline = _seedShader = _blurPipeline = _blurShader = new();
         RenderingServer.CallOnRenderThread(Callable.From(() =>
         {
             foreach (var rid in rids)

@@ -102,6 +102,11 @@ public partial class DemoTerrain : Node3D
         }
     }
 
+    // Release the compositor's GPU resources while the render thread and RenderingDevice are still
+    // alive. The effect's own predelete runs too late at app shutdown and faults natively during
+    // Godot's Texture2Drd/material teardown. See TopographicCompositorEffect.ReleaseGpuResources.
+    public override void _ExitTree() => _effect?.ReleaseGpuResources();
+
     public override void _Process(double delta)
     {
         // Wait for the producer's first render before showing/capturing the consumer.

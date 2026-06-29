@@ -12,7 +12,7 @@ All-GPU topographic map for Godot 4.7 (Mono/.NET, C#): an ortho top-down camera'
 - Build: `dotnet build TopographicMap.csproj`.
 - Run: `& $GODOT --path . res://TopoDemo/scenes/DemoMinimap.tscn`. The compositor is compute, so `--headless` will not render it; run non-headless and screenshot to verify GPU work.
 - Bake assets: `& $GODOT --headless --path . --script res://TopoDemo/scripts/TerrainBaker.cs`.
-- README shots: `DemoTerrain.tscn -- banner` or `-- presets`. No unit tests; verify by screenshot + clean build.
+- README shots: `DemoTerrain.tscn -- banner` or `-- presets`.
 
 ## Architecture
 

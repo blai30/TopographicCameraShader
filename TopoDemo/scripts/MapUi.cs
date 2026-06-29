@@ -57,6 +57,13 @@ public partial class MapUi : Control
         marker.PivotOffset = marker.Size * 0.5f;
     }
 
+    // Release the compositor's GPU resources while the render thread and RenderingDevice are still
+    // alive. The effect's own predelete runs too late at app shutdown: Godot has already started
+    // tearing down the canvas materials and RD that reference these textures through their
+    // Texture2Drd wrappers, and that order faults natively on exit. Driving it from here, before
+    // the tree unwinds, breaks the dependency chain first. See ReleaseGpuResources for detail.
+    public override void _ExitTree() => MapCompositor?.ReleaseGpuResources();
+
     // Player heading as a Control rotation. The player's yaw is rotation about Y; on the
     // top-down map, screen rotation runs opposite world yaw. Flip the sign if the
     // arrow points the wrong way.
