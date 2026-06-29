@@ -81,10 +81,16 @@ Static baked outputs: the normalized heightmap that drives the terrain mesh disp
 
 ### `scripts/TerrainBaker.cs` (edit-time only)
 
-A headless command-line tool that generates the demo continent (smooth single-octave simplex relief, an ocean in the SW corner, a smooth inland lake, and a flattened spawn) and writes `heightmap.exr` (512x512) and `terrain_collision.res`. It also bakes `banner_heightmap.exr`, the terrain used by `DemoTerrain.tscn` and the README screenshots. It is never referenced by the game scene, so the shipped game contains no generator. Re-run it only if you want to change the terrain:
+A headless command-line tool that generates the demo continent (smooth single-octave simplex relief, an ocean in the SW corner, a smooth inland lake, and a flattened spawn) and writes `heightmap.exr` (512x512) and `terrain_collision.res`. It also bakes `banner_heightmap.exr` (the smooth terrain for the README screenshots) and `torture_heightmap.exr` (the schematic stress terrain that `DemoTerrain.tscn` shows in view mode for testing). It is never referenced by the game scene, so the shipped game contains no generator. Re-run it only if you want to change the terrain:
 
 ```
 godot --headless --path . --script res://TopoDemo/scripts/TerrainBaker.cs
+```
+
+`DemoTerrain.tscn` is the one-stop testing scene. Just run it to view the torture terrain (the validation rig for the contour-robustness work, with cliffs, plateaus, a staircase, a cone, a basin, and a saddle); add `-- banner` or `-- presets` to render the smooth glamour shots instead:
+
+```
+godot --path . res://TopoDemo/scenes/DemoTerrain.tscn
 ```
 
 ### `scripts/PlayerController.cs`
