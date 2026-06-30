@@ -31,6 +31,10 @@ public partial class DemoTerrain : Node3D
     private const int BannerHeight = 960;
     private const float BannerSupersample = 1.5f;
 
+    // The README shots thin the contours relative to the scene default so the lines read as clean
+    // line work rather than a dense fill. Double the interval halves the level count.
+    private const float BannerContourInterval = 20.0f;
+
     // One image per preset (file name preset-<name>.png).
     private static readonly string[] Presets =
     [
@@ -166,15 +170,15 @@ public partial class DemoTerrain : Node3D
     {
         if (shot.Banner)
         {
-            // The light banner keeps the scene's own styling (white field, black lines); the dark
-            // variant inverts it to a black field with white lines. Only the line widths scale up
-            // so they keep their intended thickness once the supersampled image is downscaled.
-            if (shot.Dark)
-            {
-                _material.SetShaderParameter("elevation_gradient", SolidGradient(new(0f, 0f, 0f)));
-                _material.SetShaderParameter("line_color", new Color(1f, 1f, 1f));
-                _material.SetShaderParameter("line_color_from_gradient", 0.0f);
-            }
+            // The light banner is a white field with black lines; the dark variant inverts it to a
+            // black field with white lines. Both are set explicitly so the output does not depend on
+            // the scene's own (live-preview) styling. Only the line widths scale up so they keep
+            // their intended thickness once the supersampled image is downscaled.
+            float ink = shot.Dark ? 1f : 0f;
+            float field = shot.Dark ? 0f : 1f;
+            _material.SetShaderParameter("elevation_gradient", SolidGradient(new(field, field, field)));
+            _material.SetShaderParameter("line_color", new Color(ink, ink, ink));
+            _material.SetShaderParameter("line_color_from_gradient", 0.0f);
 
             ScaleLineWidthsForSupersample();
             SetWindow(0.72f, true);
@@ -193,6 +197,7 @@ public partial class DemoTerrain : Node3D
         var terrainMaterial = (ShaderMaterial)Terrain.MaterialOverride;
         terrainMaterial.SetShaderParameter(
             "heightmap", GD.Load<Texture2D>("res://TopoDemo/assets/banner_heightmap.exr"));
+        _effect.ContourInterval = BannerContourInterval;
     }
 
     // Window over the terrain. The view is a centered square (or the banner's 2.5:1 strip),
