@@ -222,3 +222,26 @@ layout_mode = 0
 offset_right = 24.0
 offset_bottom = 24.0
 mouse_filter = 2
+
+[node name="Help" type="Label" parent="Hud" unique_id=1490023117]
+layout_mode = 1
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 20.0
+offset_top = -168.0
+offset_right = 320.0
+offset_bottom = -20.0
+grow_vertical = 0
+mouse_filter = 2
+theme_override_colors/font_color = Color(1, 1, 1, 0.9)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.7)
+theme_override_constants/outline_size = 4
+theme_override_font_sizes/font_size = 14
+text = "Click  Capture mouse
+WASD  Move
+Shift  Boost
+Space / E  Up
+Ctrl / Q  Down
+Tab / M  Toggle map
+Esc  Free cursor"
+vertical_alignment = 2
