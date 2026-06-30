@@ -26,15 +26,6 @@ uniform float lines_per_major : hint_range(1.0, 20.0, 1.0) = 5.0;
 uniform float minor_line_width_px : hint_range(0.0, 8.0, 0.1) = 0.6;
 /** Width of the major contour lines, in screen pixels. */
 uniform float major_line_width_px : hint_range(0.0, 8.0, 0.1) = 0.8;
-/**
- * Minimum on-screen spacing in pixels between adjacent minor contour lines before they
- * begin to fade out. As the user zooms out or the slope steepens, lines pack tighter on
- * screen; below this spacing minor lines fade so they do not moire or smear into a solid
- * band. Major (index) lines never fade. 0 disables the fade; all minors then draw fully.
- */
-uniform float minor_legibility_px : hint_range(0.0, 16.0, 0.5) = 0.0;
-/** Spacing range in pixels over which faded minor lines come back to full strength. */
-uniform float minor_legibility_softness_px : hint_range(0.0, 16.0, 0.5) = 3.0;
 // Contour line color. Lines can use a fixed custom color, a color derived from the
 // gradient, or a blend of the two.
 group_uniforms Contours.Color;
@@ -159,18 +150,6 @@ void fragment() {
         ? mix(grad_line, vec3(1.0), line_gradient_lightness)
         : mix(grad_line, vec3(0.0), -line_gradient_lightness);
     vec3 line_col = mix(line_color.rgb, grad_line, line_color_from_gradient);
-
-    // Estimated on-screen spacing (px) between adjacent contour levels. fwidth(h) is the
-    // height change per screen pixel, so contour_interval / fwidth(h) is how many pixels
-    // apart consecutive lines fall. It collapses both when zoomed out (buffer_uv moves
-    // faster per pixel) and on steep slope (h moves faster per UV), so one quantity covers
-    // both. Fade minor lines as that spacing drops below the legibility threshold; majors
-    // never fade. A threshold of 0 disables the fade.
-    float spacing_px = contour_interval / max(fwidth(h), 1e-6);
-    float legible = minor_legibility_px <= 0.0
-        ? 1.0
-        : smoothstep(minor_legibility_px, minor_legibility_px + minor_legibility_softness_px, spacing_px);
-    line_a *= mix(legible, 1.0, is_major);
 
     COLOR = vec4(mix(tint, line_col, line_a), 1.0);
 }
